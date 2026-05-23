@@ -16,7 +16,7 @@
 
 支持的内核版本：5.10-6.12（GKI）
 
-脚本代码95%由claude code+deepseek生成，测试无问题，有问题欢迎issues反馈
+注：脚本代码95%由claude code+deepseek生成，测试无问题，有问题欢迎issues反馈
 
 <img width="1648" height="556" alt="image" src="https://github.com/user-attachments/assets/603f66a5-8a74-425d-8676-9c9d20781373" />
 
@@ -50,9 +50,17 @@ chmod +x build_kernel.sh
 
 版本选择：支持 Android 12 ~ 16，内核版本 5.10 / 5.15 / 6.1 / 6.6 / 6.12
 
-镜像加速：内置多个国内可用的 GitHub 镜像源
+镜像加速：可以使用镜像源进行源码拉取以及编译中涉及的github项目拉取
 
 自定义镜像：支持手动输入任意镜像 URL
+
+源码拉取：结合[GKI-Kernel-Source_Fetch](https://github.com/404-GCross/GKI-Kernel-Source_Fetch)项目，一站式源码拉取与编译
+
+Droidspaces&NTsync支持：本项目核心目的，6.12内核以下提供不同补丁选择
+
+Built-in可选：可以选择noroot、ResukiSU、SukiSU Ultra（未测试，不建议使用）、KernelSU（不建议使用）
+
+自定义功能：可自定义内核版本名称，构建时间
 
 
 ## 📊 支持的内核版本
@@ -64,7 +72,7 @@ Android 14	6.1	25 / 43 / 57 / 68 / 129 / 162 等 23 个版本
 
 Android 15	6.6	50 / 56 / 57 / 58 / 77 / 127 等 15 个版本
 
-Android 16	6.12	23 / 30 / 38 / 58
+Android 16	6.12	23 / 30 / 38 / 58  （编译出来的6.12内核有问题，请暂时不要使用该脚本编译6.12内核）
 
 包含 lts 长期支持版本（小版本号标记为 X）。
 
