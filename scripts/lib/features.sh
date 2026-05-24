@@ -56,6 +56,13 @@ apply_kernelsu() {
             ;;
     esac
 
+    # 修复 KernelSU setup.sh 可能产生的递归符号链接
+    if [ -d "common/drivers/kernelsu" ]; then
+        find common/drivers/kernelsu -maxdepth 3 -type l -name kernel -exec sh -c '
+            t=$(readlink -f "$1" 2>/dev/null) || { rm -f "$1"; exit 0; }
+        ' _ {} \; 2>/dev/null || true
+    fi
+
     # 计算并保存 KSU 版本号 (所有变体)
     if [ -d "KernelSU/.git" ]; then
         local ksu_git_ver=$(git -C KernelSU rev-list --count HEAD)
