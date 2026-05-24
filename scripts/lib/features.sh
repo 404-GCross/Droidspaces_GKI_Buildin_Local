@@ -119,10 +119,10 @@ apply_zram() {
         cp -r "$sukisu_patches/other/zram/lz4k_oplus" ./lib/ 2>/dev/null || true
 
         if [ -f "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4kd.patch" ]; then
-            patch -p1 -F 3 < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4kd.patch" || true
+            patch -p1 -F 3 -N < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4kd.patch" || true
         fi
         if [ -f "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4k_oplus.patch" ]; then
-            patch -p1 -F 3 < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4k_oplus.patch" || true
+            patch -p1 -F 3 -N < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4k_oplus.patch" || true
         fi
     fi
 
