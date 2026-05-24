@@ -58,7 +58,7 @@ chmod +x build_kernel.sh
 
 Droidspaces&NTsync支持：本项目核心目的，6.12内核以下提供不同补丁选择
 
-Built-in可选：可以选择noroot、ResukiSU、SukiSU Ultra（未测试，不建议使用）、KernelSU（不建议使用）
+Built-in可选：可以选择noroot、ResukiSU、KernelSU（不建议使用）
 
 自定义功能：可自定义内核版本名称，构建时间
 
