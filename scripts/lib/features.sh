@@ -93,8 +93,8 @@ apply_kernelsu() {
 apply_zram() {
     local kernel_root="$1"
     local kernel_ver="$2"
+    local sukisu_patches="$3"
     local zzh_patches="$PROJECT_ROOT"
-    local sukisu_patches="$PROJECT_ROOT/SukiSU_patch"
 
     log_step "集成 ZRAM LZ4 增强算法"
 
