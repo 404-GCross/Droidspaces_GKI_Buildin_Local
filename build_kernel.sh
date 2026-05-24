@@ -506,7 +506,7 @@ config_features() {
     echo ""
 
     # ZRAM
-    if confirm "启用 ZRAM 增强算法 (实验性内容，不推荐使用)?" "n"; then
+    if confirm "启用 ZRAM 增强算法 (LZ4KD)?" "n"; then
         BUILD_CFG[use_zram]="true"
     else
         BUILD_CFG[use_zram]="false"
@@ -514,7 +514,7 @@ config_features() {
     echo -e "  ZRAM: ${GREEN}${BUILD_CFG[use_zram]}${NC}"
 
     # Re-Kernel
-    if confirm "启用 Re-Kernel 驱动 (实验性内容，不推荐使用)?" "n"; then
+    if confirm "启用 Re-Kernel 驱动?" "n"; then
         BUILD_CFG[use_rekernel]="true"
     else
         BUILD_CFG[use_rekernel]="false"
@@ -643,7 +643,7 @@ main_menu() {
         else
             echo ""
         fi
-        echo -ne "  8) 其他功能配置 (ZRAM, Re-Kernel, KPM)"
+        echo -ne "  8) 其他功能配置 (实验性内容，不推荐使用)"
         local enabled_features=()
         [ "${BUILD_CFG[use_zram]}" = "true" ] && enabled_features+=("ZRAM")
         [ "${BUILD_CFG[use_rekernel]}" = "true" ] && enabled_features+=("Re-Kernel")
