@@ -122,7 +122,7 @@ run_build() {
 
     # AnyKernel3
     if [ ! -d "$anykernel_dir" ]; then
-        git_clone "https://github.com/WildKernels/AnyKernel3.git" "$anykernel_dir" -b "gki-2.0" || {
+        git_clone "https://github.com/404-GCross/AnyKernel3.git" "$anykernel_dir" -b "gki-2.0" || {
             log_error "AnyKernel3 克隆失败，终止编译"
             return 1
         }
