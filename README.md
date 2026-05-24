@@ -16,7 +16,7 @@
 
 支持的内核版本：5.10-6.12（GKI）
 
-注：脚本代码95%由claude code+deepseek生成，测试无问题，有问题欢迎issues反馈
+注：脚本代码95%由claude code+deepseek生成，应该会有bug，有问题欢迎issues反馈
 
 <img width="1648" height="556" alt="image" src="https://github.com/user-attachments/assets/603f66a5-8a74-425d-8676-9c9d20781373" />
 
