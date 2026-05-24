@@ -9,7 +9,7 @@
 # 应用 KernelSU
 apply_kernelsu() {
     local kernel_root="$1"
-    local ksu_variant="$2"       # Official / SukiSU / ReSukiSU / Next / None
+    local ksu_variant="$2"       # Official / ReSukiSU / Next / None
     local ksu_branch="$3"        # Stable(标准) / Dev(开发)
 
     [ "$ksu_variant" = "None" ] && return 0
@@ -26,7 +26,6 @@ apply_kernelsu() {
             case "$ksu_branch" in
                 "Stable(标准)")
                     case "$ksu_variant" in
-                        SukiSU)   branch_flag="-s builtin" ;;
                         Official) branch_flag="-s main" ;;
                         *)        branch_flag="-" ;;
                     esac
@@ -34,7 +33,6 @@ apply_kernelsu() {
                 "Dev(开发)")
                     case "$ksu_variant" in
                         Official) branch_flag="-s main" ;;
-                        SukiSU)   branch_flag="-s builtin" ;;
                     esac
                     ;;
             esac
@@ -47,10 +45,6 @@ apply_kernelsu() {
         Official)
             log_info "集成 KernelSU 官方版..."
             curl -LSs "$(mirror_github "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh")" | bash $branch_flag
-            ;;
-        SukiSU)
-            log_info "集成 SukiSU..."
-            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh")" | bash $branch_flag
             ;;
         ReSukiSU)
             log_info "集成 ReSukiSU..."
@@ -68,7 +62,6 @@ apply_kernelsu() {
         local ksu_ver
         case "$ksu_variant" in
             Official) ksu_ver=$((20000 + ksu_git_ver)) ;;
-            SukiSU)   ksu_ver=$((40000 + ksu_git_ver - 2815)) ;;
             ReSukiSU) ksu_ver=$((30700 + ksu_git_ver)) ;;
         esac
         echo "$ksu_ver" > "KernelSU/.ksu_version"

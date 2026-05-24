@@ -440,15 +440,14 @@ config_kernelsu() {
     echo -e "${CYAN}${BOLD}═══ KernelSU 配置 ═══${NC}"
     echo ""
 
-    local variants=("None (纯GKI内核/无root)" "ReSukiSU (推荐)" "SukiSU" "Official (KernelSU官方)")
+    local variants=("None (纯GKI内核/无root)" "ReSukiSU (推荐)" "Official (KernelSU官方)")
     local result=$(select_option "选择 KernelSU 变体:" "${variants[@]}")
     local idx="${result%%$'\t'*}"
 
     case $idx in
         0) BUILD_CFG[ksu_variant]="None" ;;
         1) BUILD_CFG[ksu_variant]="ReSukiSU" ;;
-        2) BUILD_CFG[ksu_variant]="SukiSU" ;;
-        3) BUILD_CFG[ksu_variant]="Official" ;;
+        2) BUILD_CFG[ksu_variant]="Official" ;;
     esac
 
     # None = 纯 GKI，不需要选择分支

@@ -240,7 +240,7 @@ CONFIG_TMPFS_POSIX_ACL=y
 EOF
 
     # KPM 配置 — 仅 KernelSU 变体可用
-    if [ "$ksu_variant" != "None" ] && [[ "$ksu_variant" == "SukiSU" || "$ksu_variant" == "ReSukiSU" || "$ksu_variant" == "Next" ]]; then
+    if [ "$ksu_variant" != "None" ] && [[ "$ksu_variant" == "ReSukiSU" || "$ksu_variant" == "Next" ]]; then
         if [[ "$use_kpm" == enabled* ]] || [[ "$use_kpm" == patched* ]]; then
             if grep -RqsE '^[[:space:]]*config[[:space:]]+KPM([[:space:]]|$)' "$common_dir" "KernelSU" 2>/dev/null; then
                 echo "CONFIG_KPM=y" >> "$defconfig"
@@ -429,7 +429,6 @@ EOF
                 local manager_workflow=""
                 case "$ksu_variant" in
                     ReSukiSU) manager_repo="ReSukiSU/ReSukiSU"; manager_workflow="build-manager.yml" ;;
-                    SukiSU)   manager_repo="SukiSU-Ultra/SukiSU-Ultra"; manager_workflow="build-manager.yml" ;;
                     Official) manager_repo="tiann/KernelSU"; manager_workflow="build-manager.yml" ;;
                 esac
                 # 读取内核集成的 KSU 版本号
