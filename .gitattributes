@@ -1,0 +1,5 @@
+# Shell scripts must use LF endings (WSL/Linux compatibility)
+*.sh text eol=lf
+
+# Config files use LF
+config/* text eol=lf
