@@ -236,6 +236,7 @@ EOF
         cat >> "$defconfig" << 'EOF'
 CONFIG_RUST=y
 CONFIG_ANDROID_BINDER_IPC_RUST=m
+CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
 EOF
     fi
 
@@ -384,7 +385,10 @@ EOF
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
 
         local lto_flag="--lto=thin"
-        [ "$kernel_ver" = "6.12" ] && lto_flag="--lto=none"
+        if [ "$kernel_ver" = "6.12" ]; then
+            lto_flag="--lto=none"
+            export KCFLAGS="${KCFLAGS:-} -O2"
+        fi
 
         cd "$work_kernel"
         tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast $lto_flag $frag_flag //common:kernel_aarch64_dist || {
@@ -416,7 +420,13 @@ EOF
         if [ -d "$anykernel_dir" ]; then
             log_step "创建 AnyKernel3 刷入包"
             cd "$anykernel_dir"
-            local zip_name="${android_ver}-${kernel_ver}.${sub_level}-${os_patch}-AnyKernel3.zip"
+            local tag=""
+            if [ "$ksu_variant" = "None" ]; then
+                tag="NoRoot"
+            else
+                tag="${os_patch}"
+            fi
+            local zip_name="${android_ver}-${kernel_ver}.${sub_level}-${tag}-AnyKernel3.zip"
             cp "$build_dir/Image" ./Image 2>/dev/null || true
             zip -r "../$zip_name" ./* -x ".git/*"
             log_info "AnyKernel3 包: $build_dir/$zip_name"
