@@ -221,6 +221,7 @@ CONFIG_RUST=y
 CONFIG_ANDROID_BINDER_IPC_RUST=m
 CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
 CONFIG_HEADERS_INSTALL=n
+CONFIG_MODULE_SIG=n
 EOF
     fi
 
@@ -400,7 +401,6 @@ EOF
         log_info "Rust:  $(rustc -V 2>/dev/null || echo N/A)"
 
         cd "$common_dir"
-        source "./_setup_env.sh" 2>/dev/null || true
 
         make -j$(nproc --all) \
             LLVM=1 ARCH=arm64 \
