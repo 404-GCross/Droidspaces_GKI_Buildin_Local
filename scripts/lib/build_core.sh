@@ -239,6 +239,14 @@ CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
 EOF
 
+    # 6.12 内核需要 Rust 支持
+    if [ "$kernel_ver" = "6.12" ]; then
+        cat >> "$defconfig" << 'EOF'
+CONFIG_RUST=y
+CONFIG_ANDROID_BINDER_IPC_RUST=m
+EOF
+    fi
+
     # KPM 配置 — 仅 KernelSU 变体可用
     if [ "$ksu_variant" != "None" ] && [[ "$ksu_variant" == "ReSukiSU" || "$ksu_variant" == "Next" ]]; then
         if [[ "$use_kpm" == enabled* ]] || [[ "$use_kpm" == patched* ]]; then

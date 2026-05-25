@@ -470,7 +470,7 @@ config_kernelsu() {
 
     # 询问是否获取 Root 管理器 APK
     echo ""
-    if confirm "是否获取 Root 管理器 APK (下载 CI 构建产物)?" "n"; then
+    if confirm "是否获取 Root 管理器 APK (下载 CI 构建产物)?" "y"; then
         BUILD_CFG[fetch_manager]="true"
         log_info "将在编译完成后下载管理器"
     else
