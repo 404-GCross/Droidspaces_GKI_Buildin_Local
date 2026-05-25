@@ -405,10 +405,21 @@ EOF
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
 
         local lto_flag="--lto=thin"
-        [ "$kernel_ver" = "6.12" ] && lto_flag="--lto=none"
+        local copts=""
+        if [ "$kernel_ver" = "6.12" ]; then
+            lto_flag="--lto=none"
+            local kernel_root="$(cd "$common_dir/.." && pwd -P)"
+            copts="--copt=-O2"
+            copts+=" --copt=-pipe"
+            copts+=" --copt=-Wno-error"
+            copts+=" --copt=-fno-stack-protector"
+            copts+=" --copt=-fdebug-prefix-map=$kernel_root=."
+            copts+=" --copt=-fmacro-prefix-map=$kernel_root=."
+            copts+=" --copt=-ffile-prefix-map=$kernel_root=."
+        fi
 
         cd "$work_kernel"
-        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast $lto_flag $frag_flag //common:kernel_aarch64_dist || {
+        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast $lto_flag $frag_flag $copts //common:kernel_aarch64_dist || {
             log_error "Bazel 编译失败"
             return 1
         }
