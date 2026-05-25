@@ -22,14 +22,14 @@ setup_dependencies() {
                 update_cmd="sudo apt-get update -qq"
                 pkgs=(git curl make gcc g++ build-essential libssl-dev
                       bison flex libelf-dev dwarves ccache python3
-                      clang lld bc rsync cpio perl patch zip gawk)
+                      clang lld bc rsync cpio perl patch zip gawk aria2)
                 ;;
             fedora)
                 distro="fedora"
                 install_cmd="sudo dnf install -y"
                 pkgs=(git curl make gcc gcc-c++ openssl-devel
                       bison flex elfutils-libelf-devel dwarves ccache python3
-                      clang lld bc rsync cpio perl patch zip gawk)
+                      clang lld bc rsync cpio perl patch zip gawk aria2)
                 ;;
             rhel|centos|almalinux|rocky|ol)
                 distro="rhel"
@@ -40,7 +40,7 @@ setup_dependencies() {
                 fi
                 pkgs=(git curl make gcc gcc-c++ openssl-devel
                       bison flex elfutils-libelf-devel dwarves ccache python3
-                      clang lld bc rsync cpio perl patch zip gawk)
+                      clang lld bc rsync cpio perl patch zip gawk aria2)
                 # RHEL/CentOS 可能需要 EPEL
                 if [[ "$install_cmd" == *"yum"* ]]; then
                     sudo yum install -y epel-release 2>/dev/null || true
@@ -53,14 +53,14 @@ setup_dependencies() {
                 install_cmd="sudo pacman -S --needed --noconfirm"
                 pkgs=(git curl make gcc base-devel openssl
                       bison flex libelf dwarves ccache python
-                      clang lld bc rsync cpio perl zip)
+                      clang lld bc rsync cpio perl zip aria2)
                 ;;
             opensuse*|suse)
                 distro="suse"
                 install_cmd="sudo zypper install -y"
                 pkgs=(git curl make gcc gcc-c++ libopenssl-devel
                       bison flex libelf-devel dwarves ccache python3
-                      clang lld bc rsync cpio perl patch zip gawk)
+                      clang lld bc rsync cpio perl patch zip gawk aria2)
                 ;;
         esac
     fi
@@ -73,7 +73,7 @@ setup_dependencies() {
             update_cmd="sudo apt-get update -qq"
             pkgs=(git curl make gcc g++ build-essential libssl-dev
                   bison flex libelf-dev dwarves ccache python3
-                  clang lld bc rsync cpio perl patch zip gawk)
+                  clang lld bc rsync cpio perl patch zip gawk aria2)
         elif [ -f /etc/redhat-release ]; then
             distro="rhel"
             if command -v dnf &>/dev/null; then
@@ -83,19 +83,19 @@ setup_dependencies() {
             fi
             pkgs=(git curl make gcc gcc-c++ openssl-devel
                   bison flex elfutils-libelf-devel dwarves ccache python3
-                  clang lld bc rsync cpio perl patch zip gawk)
+                  clang lld bc rsync cpio perl patch zip gawk aria2)
         elif [ -f /etc/arch-release ]; then
             distro="arch"
             install_cmd="sudo pacman -S --needed --noconfirm"
             pkgs=(git curl make gcc base-devel openssl
                   bison flex libelf dwarves ccache python
-                  clang lld bc rsync cpio perl zip)
+                  clang lld bc rsync cpio perl zip aria2)
         fi
     fi
 
     if [ -z "$distro" ]; then
         log_warn "未知发行版，请手动安装以下依赖:"
-        log_warn "  git curl make gcc g++ openssl-dev bison flex libelf-dev dwarves ccache python3 clang lld bc rsync cpio perl patch zip"
+        log_warn "  git curl make gcc g++ openssl-dev bison flex libelf-dev dwarves ccache python3 clang lld bc rsync cpio perl patch zip aria2"
         if confirm "是否继续?" "y"; then
             return 0
         else
