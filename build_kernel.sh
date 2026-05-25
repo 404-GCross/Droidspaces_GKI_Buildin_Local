@@ -93,15 +93,9 @@ load_config() {
 
 # GitHub 镜像源预设列表
 GITHUB_MIRROR_PRESETS=(
-    "https://gh.con.sh/"
-    "https://hub.gitmirror.com/"
-    "https://mirror.ghproxy.com/"
     "https://gh-proxy.com/"
     "https://gh.llkk.cc/"
     "https://gh.ddlc.top/"
-    "https://ghproxy.com/"
-    "https://gh.api.99988866.xyz/"
-    "https://ghproxy.cc/"
 )
 
 config_mirrors() {
