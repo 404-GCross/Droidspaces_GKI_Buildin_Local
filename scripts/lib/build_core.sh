@@ -221,11 +221,9 @@ run_build() {
     log_step "配置内核选项"
     cd "$work_kernel"
 
-    if [ "$ksu_variant" != "None" ]; then
-        cat >> "$defconfig" << 'EOF'
+    cat >> "$defconfig" << 'EOF'
 CONFIG_KSU=y
 EOF
-    fi
     cat >> "$defconfig" << 'EOF'
 CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
@@ -310,6 +308,8 @@ EOF
     log_step "配置内核版本名称"
 
     cd "$work_kernel"
+    sed -i 's/${scm_version}//' "$common_dir/scripts/setlocalversion"
+
     if [ -f "build/build.sh" ]; then
         sed -i 's/-dirty//' "$common_dir/scripts/setlocalversion"
     else
