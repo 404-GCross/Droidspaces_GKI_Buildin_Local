@@ -361,6 +361,22 @@ EOF
     sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
     sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
 
+    # 统一 KCFLAGS (对齐 fastbuild)
+    KCFLAGS+=" -O2"
+    KCFLAGS+=" -no-canonical-prefixes"
+    KCFLAGS+=" -pipe"
+    KCFLAGS+=" -Wno-error"
+    KCFLAGS+=" -fno-stack-protector"
+    KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
+    if [ "$kernel_ver" = "6.12" ]; then
+        # 6.12 引入 gendwarfksyms，无法正确处理绝对路径，需重映射
+        local kernel_root="$(cd "$common_dir/.." && pwd -P)"
+        KCFLAGS+=" -fdebug-prefix-map=$kernel_root=."
+        KCFLAGS+=" -fmacro-prefix-map=$kernel_root=."
+        KCFLAGS+=" -ffile-prefix-map=$kernel_root=."
+    fi
+    export KCFLAGS
+
     if [ -f "build/build.sh" ]; then
         log_info "使用 build.sh 编译..."
         LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
@@ -389,10 +405,7 @@ EOF
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
 
         local lto_flag="--lto=thin"
-        if [ "$kernel_ver" = "6.12" ]; then
-            lto_flag="--lto=none"
-            export KCFLAGS="${KCFLAGS:-} -O2"
-        fi
+        [ "$kernel_ver" = "6.12" ] && lto_flag="--lto=none"
 
         cd "$work_kernel"
         tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast $lto_flag $frag_flag //common:kernel_aarch64_dist || {
