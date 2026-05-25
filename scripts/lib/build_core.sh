@@ -116,9 +116,6 @@ run_build() {
     cd "$build_dir"
 
     local anykernel_dir="$build_dir/AnyKernel3"
-    local kernel_patches="$build_dir/kernel_patches"
-    local sukisu_patches="$build_dir/SukiSU_patch"
-    local action_build="$build_dir/Action-Build"
 
     # AnyKernel3
     if [ ! -d "$anykernel_dir" ]; then
@@ -129,14 +126,7 @@ run_build() {
         rm -rf "$anykernel_dir/.git" 2>/dev/null || true
     fi
 
-    # 补丁仓库
-    [ ! -d "$kernel_patches" ] && git_clone "https://github.com/WildKernels/kernel_patches.git" "$kernel_patches" || true
-    [ ! -d "$sukisu_patches" ] && git_clone "https://github.com/ShirkNeko/SukiSU_patch.git" "$sukisu_patches" || true
-    [ ! -d "$action_build" ] && git_clone "https://github.com/Numbersf/Action-Build.git" "$action_build" --depth=1 || true
-
     # ==================== 在 build 目录中准备内核源码工作副本 ====================
-    # 对于 repo 结构的内核源码，我们直接在其上操作
-    # 对于非 repo 结构，复制到 build 目录
     local work_kernel="$kernel_source"
 
     # ==================== 备份 defconfig ====================
@@ -209,6 +199,8 @@ run_build() {
 
     # ZRAM
     if [ "$use_zram" = "true" ]; then
+        local sukisu_patches="$build_dir/SukiSU_patch"
+        [ ! -d "$sukisu_patches" ] && git_clone "https://github.com/ShirkNeko/SukiSU_patch.git" "$sukisu_patches" || true
         apply_zram "$work_kernel" "$kernel_ver" "$sukisu_patches"
     fi
 
