@@ -387,14 +387,15 @@ EOF
             log_info "下载 6.12 编译工具链 (Clang19 + Rust 1.82)..."
             mkdir -p "$tc_dir"
             cd "$tc_dir"
+            local base_url="$(mirror_github "https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225")"
             aria2c -s16 -x16 -k1M \
-                "https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225/clang-r536225.zip" \
+                "${base_url}/clang-r536225.zip" \
                 -o clang.zip && unzip -q clang.zip -d clang19 && rm clang.zip &
             aria2c -s16 -x16 -k1M \
-                "https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225/rust.zip" \
+                "${base_url}/rust.zip" \
                 -o rust.zip && unzip -q rust.zip -d rust && rm rust.zip &
             aria2c -s16 -x16 -k1M \
-                "https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225/build-tools.zip" \
+                "${base_url}/build-tools.zip" \
                 -o build-tools.zip && unzip -q build-tools.zip && rm build-tools.zip &
             wait
             touch "$tc_dir/.ready"
