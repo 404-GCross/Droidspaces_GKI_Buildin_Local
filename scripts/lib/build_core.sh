@@ -377,7 +377,31 @@ EOF
     fi
     export KCFLAGS
 
-    if [ -f "build/build.sh" ]; then
+    if [ "$kernel_ver" = "6.12" ]; then
+        # 6.12 使用 make 直接编译 (对齐 fastbuild，Bazel/kleaf 无法正确传递 KCFLAGS)
+        log_info "使用 make 编译 (6.12)..."
+        cd "$common_dir"
+        source "./_setup_env.sh" 2>/dev/null || true
+
+        make -j$(nproc --all) \
+            LLVM=1 ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CC=clang LD=ld.lld \
+            OBJCOPY=llvm-objcopy \
+            O=out gki_defconfig
+
+        make -j$(nproc --all) \
+            LLVM=1 ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CC=clang LD=ld.lld \
+            OBJCOPY=llvm-objcopy \
+            O=out Image || {
+            log_error "内核编译失败"
+            return 1
+        }
+        strings out/Image | grep 'Linux version' || true
+
+    elif [ -f "build/build.sh" ]; then
         log_info "使用 build.sh 编译..."
         LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
             log_error "内核编译失败"
@@ -404,22 +428,8 @@ EOF
         local frag_flag=""
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
 
-        local lto_flag="--lto=thin"
-        local copts=""
-        if [ "$kernel_ver" = "6.12" ]; then
-            lto_flag="--lto=none"
-            local kernel_root="$(cd "$common_dir/.." && pwd -P)"
-            copts="--copt=-O2"
-            copts+=" --copt=-pipe"
-            copts+=" --copt=-Wno-error"
-            copts+=" --copt=-fno-stack-protector"
-            copts+=" --copt=-fdebug-prefix-map=$kernel_root=."
-            copts+=" --copt=-fmacro-prefix-map=$kernel_root=."
-            copts+=" --copt=-ffile-prefix-map=$kernel_root=."
-        fi
-
         cd "$work_kernel"
-        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast $lto_flag $frag_flag $copts //common:kernel_aarch64_dist || {
+        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast --lto=thin $frag_flag //common:kernel_aarch64_dist || {
             log_error "Bazel 编译失败"
             return 1
         }
@@ -431,15 +441,16 @@ EOF
     # ==================== 复制编译产物到输出目录 ====================
     cd "$build_dir"
 
-    local src_dir=""
-    if [ -f "$work_kernel/build/build.sh" ]; then
-        src_dir="$work_kernel/out/${android_ver}-${kernel_ver}/dist"
+    local image_path=""
+    if [ "$kernel_ver" = "6.12" ]; then
+        image_path="$common_dir/out/arch/arm64/boot/Image"
+    elif [ -f "$work_kernel/build/build.sh" ]; then
+        image_path="$work_kernel/out/${android_ver}-${kernel_ver}/dist/Image"
     else
-        src_dir="$work_kernel/bazel-bin/common/kernel_aarch64"
+        image_path="$work_kernel/bazel-bin/common/kernel_aarch64/Image"
     fi
 
-    cp "$src_dir/Image" "$build_dir/" 2>/dev/null || true
-    cp "$src_dir/Image.lz4" "$build_dir/" 2>/dev/null || true
+    cp "$image_path" "$build_dir/" 2>/dev/null || true
 
     if [ "$package_boot" != "true" ]; then
         log_info "跳过打包，仅输出内核镜像"
