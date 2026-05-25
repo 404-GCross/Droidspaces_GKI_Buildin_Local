@@ -17,8 +17,7 @@ NC=$'\033[0m' # No Color
 # --- 路径 ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_DIR="$PROJECT_ROOT/config"
-MIRRORS_CONF="$CONFIG_DIR/mirrors.conf"
+MIRRORS_CONF="$PROJECT_ROOT/config/mirrors.conf"
 
 # --- 日志函数 (输出到 stderr，避免被 $() 捕获) ---
 log_info()  { echo -e "${GREEN}[INFO]${NC}  $(date '+%H:%M:%S') $*" >&2; }
@@ -76,20 +75,6 @@ git_clone() {
     git clone "$actual_url" "$target_dir" "${extra_args[@]}"
 }
 
-# --- 带镜像的下载 ---
-mirror_download() {
-    local url="$1"
-    local output="$2"
-    local actual_url="$url"
-
-    if [[ "$url" == *"github.com"* ]] || [[ "$url" == *"raw.githubusercontent.com"* ]]; then
-        actual_url=$(mirror_github "$url")
-    fi
-
-    log_debug "下载: $actual_url"
-    curl -L --connect-timeout 30 --retry 3 -o "$output" "$actual_url"
-}
-
 # --- 确认提示 ---
 confirm() {
     local prompt="$1"
@@ -133,36 +118,6 @@ select_option() {
         fi
         log_error "无效选择: $choice"
     done
-}
-
-# --- 检查依赖 ---
-check_dependency() {
-    local cmd="$1"
-    local pkg="${2:-$cmd}"
-    if ! command -v "$cmd" &>/dev/null; then
-        log_error "未找到命令: $cmd (请安装: $pkg)"
-        return 1
-    fi
-}
-
-# --- 检查所有依赖 ---
-check_all_dependencies() {
-    local missing=()
-
-    for cmd in git curl make gcc bison flex perl patch zip awk ccache; do
-        if ! command -v "$cmd" &>/dev/null; then
-            missing+=("$cmd")
-        fi
-    done
-
-    if [ ${#missing[@]} -gt 0 ]; then
-        log_error "缺少以下依赖: ${missing[*]}"
-        log_info "请运行: sudo apt-get install -y git curl build-essential libssl-dev bison flex libelf-dev dwarves ccache python3 clang lld bc rsync cpio perl patch zip"
-        return 1
-    fi
-
-    log_info "基础依赖检查通过"
-    return 0
 }
 
 # --- 获取脚本目录的绝对路径 ---

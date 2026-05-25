@@ -132,25 +132,7 @@ run_build() {
     # ==================== 备份 defconfig ====================
     cp "$defconfig" "$defconfig.orig"
 
-    # ==================== 应用 Stock Config ====================
-    local stock_src="$PROJECT_ROOT/config/stock_defconfig"
-    if [ -f "$stock_src" ]; then
-        log_info "应用 Stock Config 伪装..."
-        local stock_dst="${common_dir}/arch/arm64/configs/stock_defconfig"
-        mkdir -p "$(dirname "$stock_dst")"
-        cp "$stock_src" "$stock_dst"
-
-        local makefile="$common_dir/kernel/Makefile"
-        if [ -f "$makefile" ]; then
-            local old_rule='$(obj)/config_data: $(KCONFIG_CONFIG) FORCE'
-            local new_rule='$(obj)/config_data: arch/arm64/configs/stock_defconfig FORCE'
-            if grep -qF "$new_rule" "$makefile"; then
-                : # 已完成
-            elif grep -qF "$old_rule" "$makefile"; then
-                sed -i 's|$(obj)/config_data: $(KCONFIG_CONFIG) FORCE|$(obj)/config_data: arch/arm64/configs/stock_defconfig FORCE|' "$makefile"
-            fi
-        fi
-    fi
+    # --- stock_defconfig 伪装已移除 (config/stock_defconfig 不存在) ---
 
     # ==================== 提取实际子版本号 ====================
     local actual_sub="$sub_level"
@@ -243,7 +225,7 @@ EOF
     fi
 
     # KPM 配置 — 仅 KernelSU 变体可用
-    if [ "$ksu_variant" != "None" ] && [[ "$ksu_variant" == "ReSukiSU" || "$ksu_variant" == "Next" ]]; then
+    if [ "$ksu_variant" = "ReSukiSU" ]; then
         if [[ "$use_kpm" == enabled* ]] || [[ "$use_kpm" == patched* ]]; then
             if grep -RqsE '^[[:space:]]*config[[:space:]]+KPM([[:space:]]|$)' "$common_dir" "KernelSU" 2>/dev/null; then
                 echo "CONFIG_KPM=y" >> "$defconfig"
@@ -605,7 +587,7 @@ EOF
     if [ "$package_boot" = "true" ]; then
         ls -lh "$build_dir"/*.zip 2>/dev/null || true
     fi
-    ls -lh "$build_dir"/Image "$build_dir"/Image.lz4 2>/dev/null || true
+    ls -lh "$build_dir"/Image 2>/dev/null || true
     echo ""
 
     if [ ${#rej_files[@]} -gt 0 ]; then
