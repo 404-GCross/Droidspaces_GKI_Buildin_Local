@@ -70,7 +70,7 @@ load_config() {
         BUILD_CFG[sub_level]="${SUB_LEVEL:-}"
         BUILD_CFG[os_patch_level]="${OS_PATCH_LEVEL:-}"
         BUILD_CFG[revision]="${REVISION:-}"
-        BUILD_CFG[ksu_variant]="${KSU_VARIANT:-ReSukiSU}"
+        BUILD_CFG[ksu_variant]="${KSU_VARIANT:-None}"
         BUILD_CFG[ksu_branch]="${KSU_BRANCH:-Stable(标准)}"
         BUILD_CFG[custom_version]="${CUSTOM_VERSION:-}"
         BUILD_CFG[build_time]="${BUILD_TIME:-}"
