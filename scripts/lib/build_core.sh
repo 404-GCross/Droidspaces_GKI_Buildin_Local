@@ -221,9 +221,11 @@ run_build() {
     log_step "配置内核选项"
     cd "$work_kernel"
 
-    cat >> "$defconfig" << 'EOF'
+    if [ "$ksu_variant" != "None" ]; then
+        cat >> "$defconfig" << 'EOF'
 CONFIG_KSU=y
 EOF
+    fi
     cat >> "$defconfig" << 'EOF'
 CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
