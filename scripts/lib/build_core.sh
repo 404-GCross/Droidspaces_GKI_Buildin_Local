@@ -370,27 +370,15 @@ EOF
             mkdir -p "$tc_dir"
             cd "$tc_dir"
 
-            # 下载辅助函数：aria2c → curl → wget 自动降级
-            _download() {
-                local url="$1" out="$2"
-                if command -v aria2c &>/dev/null; then
-                    aria2c -s16 -x16 -k1M "$url" -o "$out"
-                elif command -v curl &>/dev/null; then
-                    curl -LSs --retry 3 -o "$out" "$url"
-                else
-                    wget -q -O "$out" "$url"
-                fi
-            }
-
             local base_url="$(mirror_github "https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225")"
-            _download "${base_url}/clang-r536225.zip" clang.zip &
-            _download "${base_url}/rust.zip" rust.zip &
-            _download "${base_url}/build-tools.zip" build-tools.zip &
+            wget -q --show-progress -O clang.zip "${base_url}/clang-r536225.zip" &
+            wget -q --show-progress -O rust.zip "${base_url}/rust.zip" &
+            wget -q --show-progress -O build-tools.zip "${base_url}/build-tools.zip" &
             wait || { log_error "工具链下载失败，请检查网络"; return 1; }
 
-            unzip -q clang.zip -d clang19 && rm clang.zip
-            unzip -q rust.zip -d rust && rm rust.zip
-            unzip -q build-tools.zip && rm build-tools.zip
+            unzip -qo clang.zip -d clang19 && rm clang.zip
+            unzip -qo rust.zip -d rust && rm rust.zip
+            unzip -qo build-tools.zip && rm build-tools.zip
             touch "$tc_dir/.ready"
             log_info "工具链下载完成"
         fi
