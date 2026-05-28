@@ -522,6 +522,10 @@ make -j$(nproc --all) \
     OBJCOPY="llvm-objcopy" \
     O=out \
     gki_defconfig Image 2>&1 | tee $WORKDIR/build.log
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo ">>> 内核编译失败！"
+    exit 1
+fi
 echo ">>> 内核编译成功！"
 
 # ===== 选择使用 patch_linux (KPM补丁)=====
