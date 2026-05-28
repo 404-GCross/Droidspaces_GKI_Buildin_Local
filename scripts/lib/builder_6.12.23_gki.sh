@@ -78,7 +78,6 @@ cd "$WORKDIR"
 
 # ===== 安装构建依赖 =====
 echo ">>> 安装构建依赖..."
-# Function to run a command with sudo if not already root
 SU() {
     if [ "$(id -u)" -eq 0 ]; then
         "$@"
@@ -87,10 +86,84 @@ SU() {
     fi
 }
 
-SU apt-mark hold firefox && apt-mark hold libc-bin && apt-mark hold man-db
-SU rm -rf /var/lib/man-db/auto-update
-SU apt-get update
-SU apt-get install --no-install-recommends -y curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python3 python-is-python3 bc libssl-dev libelf-dev libdw-dev cpio xz-utils tar unzip aria2
+# 检测发行版并安装依赖
+_install_deps() {
+    local install_cmd=""
+    local update_cmd=""
+    local pkgs=()
+
+    if [ -f /etc/os-release ]; then
+        source /etc/os-release
+        case "${ID:-}" in
+            debian|ubuntu|linuxmint|pop|elementary|zorin)
+                install_cmd="SU apt-get install --no-install-recommends -y"
+                update_cmd="SU apt-get update -qq"
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python3 python-is-python3 bc libssl-dev libelf-dev libdw-dev cpio xz-utils tar unzip aria2)
+                SU apt-mark hold firefox 2>/dev/null || true
+                SU apt-mark hold libc-bin 2>/dev/null || true
+                SU apt-mark hold man-db 2>/dev/null || true
+                SU rm -rf /var/lib/man-db/auto-update 2>/dev/null || true
+                ;;
+            fedora)
+                install_cmd="SU dnf install -y"
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 python3 python-unversioned-command bc openssl-devel libelf-devel elfutils-libelf-devel libdwarf-devel cpio xz tar unzip aria2)
+                ;;
+            rhel|centos|almalinux|rocky|ol)
+                if command -v dnf &>/dev/null; then
+                    install_cmd="SU dnf install -y"
+                else
+                    install_cmd="SU yum install -y"
+                fi
+                if [[ "$install_cmd" == *"yum"* ]]; then
+                    SU yum install -y epel-release 2>/dev/null || true
+                else
+                    SU dnf install -y epel-release 2>/dev/null || true
+                fi
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel libelf-devel elfutils-libelf-devel libdwarf-devel cpio xz tar unzip aria2)
+                ;;
+            arch|manjaro|endeavouros|garuda)
+                install_cmd="SU pacman -S --needed --noconfirm"
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python python bc openssl libelf cpio xz tar unzip aria2)
+                ;;
+            opensuse*|suse)
+                install_cmd="SU zypper install -y"
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc libopenssl-devel libelf-devel libdwarf-devel cpio xz tar unzip aria2)
+                ;;
+            *)
+                echo "未知发行版: ${ID:-unknown}，尝试使用 apt-get..."
+                install_cmd="SU apt-get install --no-install-recommends -y"
+                update_cmd="SU apt-get update -qq"
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python3 python-is-python3 bc libssl-dev libelf-dev libdw-dev cpio xz-utils tar unzip aria2)
+                ;;
+        esac
+    else
+        # 回退：尝试常见包管理器
+        if command -v apt-get &>/dev/null; then
+            install_cmd="SU apt-get install --no-install-recommends -y"
+            update_cmd="SU apt-get update -qq"
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python3 python-is-python3 bc libssl-dev libelf-dev libdw-dev cpio xz-utils tar unzip aria2)
+        elif command -v dnf &>/dev/null; then
+            install_cmd="SU dnf install -y"
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel libelf-devel elfutils-libelf-devel cpio xz tar unzip aria2)
+        elif command -v yum &>/dev/null; then
+            install_cmd="SU yum install -y"
+            SU yum install -y epel-release 2>/dev/null || true
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel libelf-devel elfutils-libelf-devel cpio xz tar unzip aria2)
+        elif command -v pacman &>/dev/null; then
+            install_cmd="SU pacman -S --needed --noconfirm"
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python bc openssl libelf cpio xz tar unzip aria2)
+        elif command -v zypper &>/dev/null; then
+            install_cmd="SU zypper install -y"
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc libopenssl-devel libelf-devel cpio xz tar unzip aria2)
+        else
+            echo "无法检测包管理器，请手动安装依赖: curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python3 bc libssl-dev libelf-dev cpio tar unzip aria2"
+        fi
+    fi
+
+    [ -n "$update_cmd" ] && $update_cmd
+    [ -n "$install_cmd" ] && $install_cmd "${pkgs[@]}"
+}
+_install_deps
 
 # ===== 初始化仓库 =====
 echo ">>> 初始化仓库..."
