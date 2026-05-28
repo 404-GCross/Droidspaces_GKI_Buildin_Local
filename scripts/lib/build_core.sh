@@ -408,14 +408,9 @@ EOF
         source "./_setup_env.sh" 2>/dev/null
         set -e
 
-        make -j$(nproc --all) \
-            LLVM=1 ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang HOSTCC=clang \
-            LD=ld.lld HOSTLD=ld.lld \
-            RUSTC=rustc \
-            OBJCOPY=llvm-objcopy \
-            O=out gki_defconfig
+        # 防止 _setup_env.sh 重置 KCFLAGS 导致 path-remap 丢失
+        export KCFLAGS
+        log_info "KCFLAGS=$KCFLAGS"
 
         make -j$(nproc --all) \
             LLVM=1 ARCH=arm64 \
@@ -424,11 +419,12 @@ EOF
             LD=ld.lld HOSTLD=ld.lld \
             RUSTC=rustc \
             OBJCOPY=llvm-objcopy \
-            O=out Image || {
+            O=out \
+            gki_defconfig Image || {
             log_error "内核编译失败"
             return 1
         }
-        strings out/Image | grep 'Linux version' || true
+        strings out/arch/arm64/boot/Image | grep 'Linux version' || true
 
     elif [ -f "build/build.sh" ]; then
         log_info "使用 build.sh 编译..."
