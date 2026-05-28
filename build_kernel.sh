@@ -595,6 +595,71 @@ show_config_summary() {
     echo ""
 }
 
+# 选择脚本获取的内核源码
+config_kernel_from_source_package() {
+    echo ""
+    echo -e "${CYAN}${BOLD}═══ 选择脚本获取的内核源码 ═══${NC}"
+    echo ""
+
+    local src_dir="$PROJECT_ROOT/kernel_sources"
+    if [ ! -d "$src_dir" ]; then
+        log_error "内核源码目录不存在: $src_dir"
+        log_info "请先执行 '获取内核源码' 下载源码包"
+        return 1
+    fi
+
+    shopt -s nullglob
+    local tarballs=("$src_dir"/*.tar.gz)
+    shopt -u nullglob
+
+    if [ ${#tarballs[@]} -eq 0 ]; then
+        log_error "未找到内核源码压缩包 (.tar.gz)"
+        log_info "请先执行 '获取内核源码' 下载源码包"
+        return 1
+    fi
+
+    local labels=()
+    for t in "${tarballs[@]}"; do
+        local name=$(basename "$t")
+        if [[ "$name" =~ ^kernel-source-(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)\.tar\.gz$ ]]; then
+            labels+=("${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}")
+        else
+            labels+=("$name")
+        fi
+    done
+
+    local result=$(select_option "选择内核源码:" "${labels[@]}")
+    local idx="${result%%$'\t'*}"
+    local chosen="${tarballs[$idx]}"
+    local name=$(basename "$chosen")
+
+    # 解析版本号
+    if [[ "$name" =~ ^kernel-source-(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)\.tar\.gz$ ]]; then
+        BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
+        BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
+        BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
+        log_info "已识别内核版本: ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
+
+        if confirm "是否解压此源码包到项目根目录?" "y"; then
+            log_info "正在解压 $name ..."
+            tar -xzf "$chosen" -C "$PROJECT_ROOT"
+            local extracted_dir="$PROJECT_ROOT/${name%.tar.gz}"
+            if [ -d "$extracted_dir/common" ]; then
+                BUILD_CFG[kernel_source]="$extracted_dir"
+                log_info "已设置内核源码路径: $extracted_dir"
+            elif [ -d "$PROJECT_ROOT/common" ]; then
+                BUILD_CFG[kernel_source]="$PROJECT_ROOT"
+                log_info "已设置内核源码路径: $PROJECT_ROOT"
+            else
+                log_warn "解压完成，但未找到 common/ 子目录，请手动设置源码路径"
+            fi
+        fi
+    else
+        log_warn "无法从文件名识别内核版本: $name"
+        log_info "参考格式: kernel-source-android16-6.12-23.tar.gz"
+    fi
+}
+
 # ================================================================
 # 主菜单
 # ================================================================
@@ -621,27 +686,28 @@ main_menu() {
         echo -e " ${GREEN}→ ${CUSTOM_GITHUB_MIRROR:-直连}${NC}"
         echo "  2) 安装编译依赖"
         echo "  3) 获取内核源码"
-        echo -ne "  4) 选择内核源码路径"
+        echo "  4) 选择脚本获取的内核源码"
+        echo -ne "  5) 选择内核源码路径"
         [ -n "${BUILD_CFG[kernel_source]}" ] && echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}" || echo ""
-        echo -ne "  5) 选择内核版本"
+        echo -ne "  6) 选择内核版本"
         if [ -n "${BUILD_CFG[android_version]}" ] && [ -n "${BUILD_CFG[kernel_version]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  6) 配置 KernelSU"
+        echo -ne "  7) 配置 KernelSU"
         if [ -n "${BUILD_CFG[ksu_variant]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[ksu_variant]} (${BUILD_CFG[ksu_branch]})${NC}"
         else
             echo ""
         fi
-        echo -ne "  7) Droidspaces 容器支持"
+        echo -ne "  8) Droidspaces 容器支持"
         if [ -n "${BUILD_CFG[droidspaces]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[droidspaces]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  8) 其他功能配置 (实验性内容，不推荐使用)"
+        echo -ne "  9) 其他功能配置 (实验性内容，不推荐使用)"
         local enabled_features=()
         [ "${BUILD_CFG[use_zram]}" = "true" ] && enabled_features+=("ZRAM")
         [ "${BUILD_CFG[use_rekernel]}" = "true" ] && enabled_features+=("Re-Kernel")
@@ -677,11 +743,12 @@ main_menu() {
                 setup_ccache
                 ;;
             3) fetch_kernel_source ;;
-            4) config_kernel_source ;;
-            5) config_kernel_version ;;
-            6) config_kernelsu ;;
-            7) config_droidspaces ;;
-            8) config_features ;;
+            4) config_kernel_from_source_package ;;
+            5) config_kernel_source ;;
+            6) config_kernel_version ;;
+            7) config_kernelsu ;;
+            8) config_droidspaces ;;
+            9) config_features ;;
             0) config_optional ;;
             s)
                 # 验证必要配置
