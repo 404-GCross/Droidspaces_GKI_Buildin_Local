@@ -172,10 +172,7 @@ mkdir kernel_workspace
 cd kernel_workspace
 
 echo "正在克隆源码仓库..."
-aria2c -s16 -x16 -k1M https://github.com/cctv18/android_gki_kernel_common/archive/refs/heads/android16-6.12-2025-06.zip -o common.zip &&
-unzip -q common.zip &&
-mv "android_gki_kernel_common-android16-6.12-2025-06" common &&
-rm -rf common.zip &
+git clone --depth=1 https://github.com/cctv18/android_gki_kernel_common.git -b android16-6.12-2025-06 common &
 
 echo "正在克隆llvm-clang19工具链..." &&
 mkdir -p clang19 &&
