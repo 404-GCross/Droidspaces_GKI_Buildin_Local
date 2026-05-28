@@ -204,6 +204,8 @@ fetch_kernel_source() {
     log_info "正在获取内核源码拉取脚本..."
     log_info "脚本地址: $actual_url"
 
+    mkdir -p "$PROJECT_ROOT/kernel_sources"
+
     local tmp_out="/tmp/fetch_kernel_output.log"
     bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out"
     local ret=${PIPESTATUS[0]}
