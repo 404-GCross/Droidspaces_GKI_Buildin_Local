@@ -806,11 +806,12 @@ main_menu() {
                     continue
                 fi
 
+                extract_kernel_source_tarball
+
                 show_config_summary
 
                 if confirm "确认配置无误，开始编译?" "y"; then
                     save_config
-                    extract_kernel_source_tarball || continue
                     run_build
                     return $?
                 else
