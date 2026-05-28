@@ -276,6 +276,7 @@ config_kernel_source() {
     read -r -p "$(echo -e "${YELLOW}GKI 源码目录路径 (包含 common/ 子目录):${NC} ")" src
     if [ -d "$src/common" ]; then
         BUILD_CFG[kernel_source]=$(get_abs_path "$src")
+        BUILD_CFG[kernel_source_tarball]=""  # 手动路径，编译时跳过解压
         log_info "已选择 GKI 源码: ${BUILD_CFG[kernel_source]}"
     else
         log_error "目录中未找到 common/ 子目录，不是有效的 GKI 源码目录"
