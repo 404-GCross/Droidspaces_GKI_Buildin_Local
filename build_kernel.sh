@@ -589,7 +589,13 @@ show_config_summary() {
     echo -e "${CYAN}${BOLD}║           构建配置摘要                       ║${NC}"
     echo -e "${CYAN}${BOLD}╚══════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "  ${BOLD}内核源码${NC}      ${GREEN}${BUILD_CFG[kernel_source]:-未设置!}${NC}"
+    if [ -n "${BUILD_CFG[kernel_source]}" ]; then
+        echo -e "  ${BOLD}内核源码${NC}      ${GREEN}${BUILD_CFG[kernel_source]}${NC}"
+    elif [ -n "${BUILD_CFG[kernel_source_tarball]}" ]; then
+        echo -e "  ${BOLD}源码包${NC}        ${GREEN}$(basename "${BUILD_CFG[kernel_source_tarball]}")${NC} ${YELLOW}(编译时解压)${NC}"
+    else
+        echo -e "  ${BOLD}内核源码${NC}      ${RED}未设置!${NC}"
+    fi
     echo -e "  ${BOLD}Android版本${NC}    ${GREEN}${BUILD_CFG[android_version]:-未设置!}${NC}"
     echo -e "  ${BOLD}内核版本${NC}      ${GREEN}${BUILD_CFG[kernel_version]:-未设置!}${NC}"
     echo -e "  ${BOLD}子版本号${NC}      ${GREEN}${BUILD_CFG[sub_level]:-未设置!}${NC}"
