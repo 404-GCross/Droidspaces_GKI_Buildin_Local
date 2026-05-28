@@ -344,93 +344,16 @@ EOF
     sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
     sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
 
-    # 统一 KCFLAGS (对齐 fastbuild)
+    # 统一 KCFLAGS
     KCFLAGS+=" -O2"
     KCFLAGS+=" -no-canonical-prefixes"
     KCFLAGS+=" -pipe"
     KCFLAGS+=" -Wno-error"
     KCFLAGS+=" -fno-stack-protector"
     KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
-    if [ "$kernel_ver" = "6.12" ]; then
-        # 6.12 引入 gendwarfksyms，无法正确处理绝对路径，需重映射
-        local kernel_root="$(cd "$common_dir/.." && pwd -P)"
-        KCFLAGS+=" -fdebug-prefix-map=$kernel_root=."
-        KCFLAGS+=" -fmacro-prefix-map=$kernel_root=."
-        KCFLAGS+=" -ffile-prefix-map=$kernel_root=."
-    fi
     export KCFLAGS
 
-    if [ "$kernel_ver" = "6.12" ]; then
-        # 6.12 使用 make 直接编译 (对齐 fastbuild，固定 Clang19+Rust1.82 工具链)
-        log_info "使用 make 编译 (6.12)..."
-
-        # 下载工具链 (缓存复用)
-        local tc_dir="$build_dir/toolchain_6.12"
-        if [ ! -f "$tc_dir/.ready" ]; then
-            log_info "下载 6.12 编译工具链 (Clang19 + Rust 1.82)..."
-            mkdir -p "$tc_dir"
-            cd "$tc_dir"
-
-            local base_url="$(mirror_github "https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225")"
-            wget -q --show-progress -O clang.zip "${base_url}/clang-r536225.zip" &
-            wget -q --show-progress -O rust.zip "${base_url}/rust.zip" &
-            wget -q --show-progress -O build-tools.zip "${base_url}/build-tools.zip" &
-            wait || { log_error "工具链下载失败，请检查网络"; return 1; }
-
-            unzip -qo clang.zip -d clang19 && rm clang.zip
-            unzip -qo rust.zip -d rust && rm rust.zip
-            unzip -qo build-tools.zip && rm build-tools.zip
-            touch "$tc_dir/.ready"
-            log_info "工具链下载完成"
-        fi
-
-        # 设置工具链环境 (仅 6.12，不影响其他版本)
-        # 对齐 builder_6.12.23_gki.sh 的完整工具链变量
-        export PATH="$tc_dir/clang19/bin:$tc_dir/build-tools/bin:$tc_dir/rust/bin:$PATH"
-        export CC=clang
-        export HOSTCC=clang
-        export LD=ld.lld
-        export HOSTLD=ld.lld
-        export RUSTC=rustc
-        export BINDGEN=bindgen
-        export LIBCLANG_PATH="$tc_dir/clang19/lib"
-        export LLVM=1 LLVM_IAS=1
-        export ARCH=arm64 SUBARCH=arm64
-        export CROSS_COMPILE=aarch64-linux-gnu-
-        export AR=llvm-ar NM=llvm-nm AS=clang READELF=llvm-readelf
-        export OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump OBJSIZE=llvm-size STRIP=llvm-strip
-
-        log_info "Clang: $(clang --version | head -1)"
-        log_info "Rust:  $(rustc -V 2>/dev/null || echo N/A)"
-
-        cd "$common_dir"
-        set +e
-        source "./_setup_env.sh" 2>/dev/null
-        set -e
-
-        make -j$(nproc --all) \
-            LLVM=1 ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang HOSTCC=clang \
-            LD=ld.lld HOSTLD=ld.lld \
-            RUSTC=rustc \
-            OBJCOPY=llvm-objcopy \
-            O=out gki_defconfig
-
-        make -j$(nproc --all) \
-            LLVM=1 ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang HOSTCC=clang \
-            LD=ld.lld HOSTLD=ld.lld \
-            RUSTC=rustc \
-            OBJCOPY=llvm-objcopy \
-            O=out Image || {
-            log_error "内核编译失败"
-            return 1
-        }
-        strings out/Image | grep 'Linux version' || true
-
-    elif [ -f "build/build.sh" ]; then
+    if [ -f "build/build.sh" ]; then
         log_info "使用 build.sh 编译..."
         LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
             log_error "内核编译失败"
@@ -471,9 +394,7 @@ EOF
     cd "$build_dir"
 
     local image_path=""
-    if [ "$kernel_ver" = "6.12" ]; then
-        image_path="$common_dir/out/arch/arm64/boot/Image"
-    elif [ -f "$work_kernel/build/build.sh" ]; then
+    if [ -f "$work_kernel/build/build.sh" ]; then
         image_path="$work_kernel/out/${android_ver}-${kernel_ver}/dist/Image"
     else
         image_path="$work_kernel/bazel-bin/common/kernel_aarch64/Image"
