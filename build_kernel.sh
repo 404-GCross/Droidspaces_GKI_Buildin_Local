@@ -196,7 +196,7 @@ fetch_kernel_source() {
     echo -e "${CYAN}${BOLD}═══ 获取内核源码 ═══${NC}"
     echo ""
 
-    local script_url="https://raw.githubusercontent.com/404-GCross/GKI-Kernel-Source_Fetch/refs/heads/main/fetch_kernel_source.sh"
+    local script_url="https://raw.githubusercontent.com/404-GCross/GKI-Kernel-Source_Fetch/refs/heads/main/fetch_kernel_source_no-extract.sh"
     local actual_url=$(mirror_github "$script_url")
 
     log_info "正在获取内核源码拉取脚本..."
