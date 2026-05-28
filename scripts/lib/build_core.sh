@@ -385,6 +385,7 @@ EOF
         fi
 
         # 设置工具链环境 (仅 6.12，不影响其他版本)
+        # 对齐 builder_6.12.23_gki.sh 的完整工具链变量
         export PATH="$tc_dir/clang19/bin:$tc_dir/build-tools/bin:$tc_dir/rust/bin:$PATH"
         export CC=clang
         export HOSTCC=clang
@@ -396,23 +397,32 @@ EOF
         export LLVM=1 LLVM_IAS=1
         export ARCH=arm64 SUBARCH=arm64
         export CROSS_COMPILE=aarch64-linux-gnu-
+        export AR=llvm-ar NM=llvm-nm AS=clang READELF=llvm-readelf
+        export OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump OBJSIZE=llvm-size STRIP=llvm-strip
 
         log_info "Clang: $(clang --version | head -1)"
         log_info "Rust:  $(rustc -V 2>/dev/null || echo N/A)"
 
         cd "$common_dir"
+        set +e
+        source "./_setup_env.sh" 2>/dev/null
+        set -e
 
         make -j$(nproc --all) \
             LLVM=1 ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang LD=ld.lld \
+            CC=clang HOSTCC=clang \
+            LD=ld.lld HOSTLD=ld.lld \
+            RUSTC=rustc \
             OBJCOPY=llvm-objcopy \
             O=out gki_defconfig
 
         make -j$(nproc --all) \
             LLVM=1 ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang LD=ld.lld \
+            CC=clang HOSTCC=clang \
+            LD=ld.lld HOSTLD=ld.lld \
+            RUSTC=rustc \
             OBJCOPY=llvm-objcopy \
             O=out Image || {
             log_error "内核编译失败"
