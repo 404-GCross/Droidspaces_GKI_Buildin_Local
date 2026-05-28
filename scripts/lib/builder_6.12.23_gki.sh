@@ -319,6 +319,7 @@ echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$DEFCONFIG_FILE"
 echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$DEFCONFIG_FILE"
 #跳过将uapi标准头安装到 usr/include 目录的不必要操作，节省编译时间
 echo "CONFIG_HEADERS_INSTALL=n" >> "$DEFCONFIG_FILE"
+echo "CONFIG_MODULE_SIG=n" >> "$DEFCONFIG_FILE"
 
 # 6.12内核Rust配置
 echo "CONFIG_RUST=y" >> ./common/arch/arm64/configs/gki_defconfig
