@@ -54,6 +54,7 @@ USE_KPM="${BUILD_CFG[use_kpm]}"
 USE_REKERNEL="${BUILD_CFG[use_rekernel]}"
 DROIDSPACES="${BUILD_CFG[droidspaces]}"
 KERNEL_SOURCE="${BUILD_CFG[kernel_source]}"
+KERNEL_SOURCE_TARBALL="${BUILD_CFG[kernel_source_tarball]:-}"
 OUTPUT_DIR="${BUILD_CFG[output_dir]}"
 PACKAGE_BOOT="${BUILD_CFG[package_boot]}"
 FETCH_MANAGER="${BUILD_CFG[fetch_manager]}"
@@ -79,6 +80,7 @@ load_config() {
         BUILD_CFG[use_rekernel]="${USE_REKERNEL:-false}"
         BUILD_CFG[droidspaces]="${DROIDSPACES:-off}"
         BUILD_CFG[kernel_source]="${KERNEL_SOURCE:-}"
+        BUILD_CFG[kernel_source_tarball]="${KERNEL_SOURCE_TARBALL:-}"
         BUILD_CFG[output_dir]="${OUTPUT_DIR:-$PROJECT_ROOT/build/out}"
         BUILD_CFG[package_boot]="${PACKAGE_BOOT:-true}"
         BUILD_CFG[fetch_manager]="${FETCH_MANAGER:-false}"
@@ -638,22 +640,9 @@ config_kernel_from_source_package() {
         BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
         BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
         BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
+        BUILD_CFG[kernel_source_tarball]="$chosen"
         log_info "已识别内核版本: ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
-
-        if confirm "是否解压此源码包到项目根目录?" "y"; then
-            log_info "正在解压 $name ..."
-            tar -xzf "$chosen" -C "$PROJECT_ROOT"
-            local extracted_dir="$PROJECT_ROOT/${name%.tar.gz}"
-            if [ -d "$extracted_dir/common" ]; then
-                BUILD_CFG[kernel_source]="$extracted_dir"
-                log_info "已设置内核源码路径: $extracted_dir"
-            elif [ -d "$PROJECT_ROOT/common" ]; then
-                BUILD_CFG[kernel_source]="$PROJECT_ROOT"
-                log_info "已设置内核源码路径: $PROJECT_ROOT"
-            else
-                log_warn "解压完成，但未找到 common/ 子目录，请手动设置源码路径"
-            fi
-        fi
+        log_info "源码包: $chosen (将在编译时解压)"
     else
         log_warn "无法从文件名识别内核版本: $name"
         log_info "参考格式: kernel-source-android16-6.12-23.tar.gz"
