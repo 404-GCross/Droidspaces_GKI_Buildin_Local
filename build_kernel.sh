@@ -204,7 +204,7 @@ fetch_kernel_source() {
     log_info "正在获取内核源码拉取脚本..."
     log_info "脚本地址: $actual_url"
 
-    mkdir -p "$PROJECT_ROOT/kernel_sources"
+    mkdir -p "$PROJECT_ROOT/kernel-sources"
 
     local tmp_out="/tmp/fetch_kernel_output.log"
     bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out"
@@ -245,9 +245,9 @@ fetch_kernel_source() {
         log_warn "未能自动检测源码路径，请手动设置"
     fi
 
-    # 扫描 kernel_sources/ 中的压缩包，自动设置
+    # 扫描 kernel-sources/ 中的压缩包，自动设置
     shopt -s nullglob
-    local tarballs=("$PROJECT_ROOT/kernel_sources"/*.tar.gz)
+    local tarballs=("$PROJECT_ROOT/kernel-sources"/*.tar.gz)
     shopt -u nullglob
     if [ ${#tarballs[@]} -gt 0 ] && [ -n "${BUILD_CFG[android_version]}" ]; then
         local version_pattern="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
@@ -633,7 +633,7 @@ config_kernel_from_source_package() {
     echo -e "${CYAN}${BOLD}═══ 选择脚本获取的内核源码 ═══${NC}"
     echo ""
 
-    local src_dir="$PROJECT_ROOT/kernel_sources"
+    local src_dir="$PROJECT_ROOT/kernel-sources"
     if [ ! -d "$src_dir" ]; then
         log_error "内核源码目录不存在: $src_dir"
         log_info "请先执行 '获取内核源码' 下载源码包"
