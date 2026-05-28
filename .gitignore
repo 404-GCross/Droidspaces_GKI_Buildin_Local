@@ -89,7 +89,7 @@ gcc/
 .cache/
 
 #cctv18的参考文件
-builder_6.12.23_gki.sh
+
 *.yml
 
 .gitignore
