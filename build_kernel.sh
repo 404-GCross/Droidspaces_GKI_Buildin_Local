@@ -242,6 +242,27 @@ fetch_kernel_source() {
     else
         log_warn "未能自动检测源码路径，请手动设置"
     fi
+
+    # 扫描 kernel_sources/ 中的压缩包，自动设置
+    shopt -s nullglob
+    local tarballs=("$PROJECT_ROOT/kernel_sources"/*.tar.gz)
+    shopt -u nullglob
+    if [ ${#tarballs[@]} -gt 0 ] && [ -n "${BUILD_CFG[android_version]}" ]; then
+        local version_pattern="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
+        local matched=""
+        for t in "${tarballs[@]}"; do
+            local name=$(basename "$t")
+            if [[ "$name" =~ ^kernel-source-(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)\.tar\.gz$ ]]; then
+                if [ "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}" = "$version_pattern" ]; then
+                    matched="$t"
+                    break
+                fi
+            fi
+        done
+        [ -z "$matched" ] && matched="${tarballs[0]}"
+        BUILD_CFG[kernel_source_tarball]="$matched"
+        log_info "已自动设置内核源码包: $(basename "$matched")"
+    fi
 }
 
 # 内核源码路径选择
