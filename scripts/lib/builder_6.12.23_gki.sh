@@ -106,7 +106,7 @@ _install_deps() {
                 ;;
             fedora)
                 install_cmd="SU dnf install -y"
-                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 python3 python-unversioned-command bc openssl-devel libelf-devel elfutils-libelf-devel libdwarf-devel cpio xz tar unzip aria2)
+                pkgs=(curl bison flex clang binutils dwarves git lld zip perl make gcc gcc-c++ python3 python-unversioned-command bc openssl-devel elfutils-libelf-devel libdwarf-devel cpio xz tar unzip aria2)
                 ;;
             rhel|centos|almalinux|rocky|ol)
                 if command -v dnf &>/dev/null; then
@@ -119,7 +119,7 @@ _install_deps() {
                 else
                     SU dnf install -y epel-release 2>/dev/null || true
                 fi
-                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel libelf-devel elfutils-libelf-devel libdwarf-devel cpio xz tar unzip aria2)
+                pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel elfutils-libelf-devel libdwarf-devel cpio xz tar unzip aria2)
                 ;;
             arch|manjaro|endeavouros|garuda)
                 install_cmd="SU pacman -S --needed --noconfirm"
@@ -144,11 +144,11 @@ _install_deps() {
             pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python3 python-is-python3 bc libssl-dev libelf-dev libdw-dev cpio xz-utils tar unzip aria2)
         elif command -v dnf &>/dev/null; then
             install_cmd="SU dnf install -y"
-            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel libelf-devel elfutils-libelf-devel cpio xz tar unzip aria2)
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel elfutils-libelf-devel cpio xz tar unzip aria2)
         elif command -v yum &>/dev/null; then
             install_cmd="SU yum install -y"
             SU yum install -y epel-release 2>/dev/null || true
-            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel libelf-devel elfutils-libelf-devel cpio xz tar unzip aria2)
+            pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc gcc-c++ python3 bc openssl-devel elfutils-libelf-devel cpio xz tar unzip aria2)
         elif command -v pacman &>/dev/null; then
             install_cmd="SU pacman -S --needed --noconfirm"
             pkgs=(curl bison flex clang binutils dwarves git lld pahole zip perl make gcc python bc openssl libelf cpio xz tar unzip aria2)
