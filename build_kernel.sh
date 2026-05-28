@@ -680,16 +680,16 @@ main_menu() {
         echo -ne "  1) 镜像源配置"
         echo -e " ${GREEN}→ ${CUSTOM_GITHUB_MIRROR:-直连}${NC}"
         echo "  2) 安装编译依赖"
-        echo "  3) 获取内核源码"
-        echo -ne "  4) 选择内核源码路径"
+        echo "  3) 使用 builder_6.12.23_gki.sh 编译 (独立流程)"
+        echo "  4) 获取内核源码"
+        echo -ne "  5) 选择内核源码路径"
         [ -n "${BUILD_CFG[kernel_source]}" ] && echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}" || echo ""
-        echo -ne "  5) 选择内核版本"
+        echo -ne "  6) 选择内核版本"
         if [ -n "${BUILD_CFG[android_version]}" ] && [ -n "${BUILD_CFG[kernel_version]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}${NC}"
         else
             echo ""
         fi
-        echo     "  6) 使用 builder_6.12.23_gki.sh 编译 (独立流程)"
         echo -ne "  7) 配置 KernelSU"
         if [ -n "${BUILD_CFG[ksu_variant]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[ksu_variant]} (${BUILD_CFG[ksu_branch]})${NC}"
@@ -737,10 +737,10 @@ main_menu() {
                 setup_dependencies
                 setup_ccache
                 ;;
-            3) fetch_kernel_source ;;
-            4) config_kernel_source ;;
-            5) config_kernel_version ;;
-            6) run_builder_6_12 ;;
+            3) run_builder_6_12 ;;
+            4) fetch_kernel_source ;;
+            5) config_kernel_source ;;
+            6) config_kernel_version ;;
             7) config_kernelsu ;;
             8) config_droidspaces ;;
             9) config_features ;;
