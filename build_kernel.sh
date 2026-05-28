@@ -153,6 +153,8 @@ config_mirrors() {
 use_custom_mirror=true
 CUSTOM_GITHUB_MIRROR="${CUSTOM_GITHUB_MIRROR:-}"
 EOF
+    # 立即加载到当前 shell，确保后续步骤（如 fetch_kernel_source）可用
+    source "$MIRRORS_CONF"
     log_info "镜像配置已保存"
 }
 
