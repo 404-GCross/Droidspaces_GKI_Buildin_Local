@@ -763,7 +763,7 @@ main_menu() {
             0) config_optional ;;
             s)
                 # 验证必要配置
-                if [ -z "${BUILD_CFG[kernel_source]}" ] || [ -z "${BUILD_CFG[android_version]}" ] || [ -z "${BUILD_CFG[kernel_version]}" ]; then
+                if ([ -z "${BUILD_CFG[kernel_source]}" ] && [ -z "${BUILD_CFG[kernel_source_tarball]}" ]) || [ -z "${BUILD_CFG[android_version]}" ] || [ -z "${BUILD_CFG[kernel_version]}" ]; then
                     log_error "请先配置内核源码路径和内核版本!"
                     continue
                 fi
