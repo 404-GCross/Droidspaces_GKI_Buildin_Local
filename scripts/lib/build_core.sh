@@ -132,8 +132,6 @@ run_build() {
     # ==================== 备份 defconfig ====================
     cp "$defconfig" "$defconfig.orig"
 
-    # --- stock_defconfig 伪装已移除 (config/stock_defconfig 不存在) ---
-
     # ==================== 提取实际子版本号 ====================
     local actual_sub="$sub_level"
     if [ -f "$common_dir/Makefile" ]; then

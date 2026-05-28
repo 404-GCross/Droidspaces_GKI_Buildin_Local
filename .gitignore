@@ -4,8 +4,6 @@
 # Gemini
 .gemini/
 
-# Development files
-hympfs-dev.diff
 # IDE & Editors
 .idea/
 .vscode/
@@ -53,20 +51,8 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# Web build artifacts (data copied at deploy time)
-web/data/
-
 # Node.js (if any tooling)
 node_modules/
-
-# Other
-.ace-tool/
-AGENTS.md
-web/serve.sh
-.omc/
-web/dist/
-wild_kernel_comparison.md
-action_build_comparison.md
 
 # Local build artifacts
 build/
@@ -88,8 +74,11 @@ gcc/
 .ccache/
 .cache/
 
-#cctv18的参考文件
+# Environment / secrets (prevent accidental commits)
+.env*
+*.pem
+*credentials*
+*secret*
 
+# CI config (if any)
 *.yml
-
-.gitignore
