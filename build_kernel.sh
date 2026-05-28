@@ -595,68 +595,6 @@ show_config_summary() {
     echo ""
 }
 
-# 使用 builder_6.12.23_gki.sh 编译 (不改动脚本，通过环境注入镜像)
-run_builder_6_12() {
-    local script="$PROJECT_ROOT/scripts/lib/builder_6.12.23_gki.sh"
-    if [ ! -f "$script" ]; then
-        log_error "未找到 builder_6.12.23_gki.sh"
-        return 1
-    fi
-
-    load_mirror_config
-    local mirror="${CUSTOM_GITHUB_MIRROR:-}"
-
-    if [ -n "$mirror" ]; then
-        log_info "已启用镜像源: ${mirror}"
-
-        # 1) Git 镜像 — 通过临时 GIT_CONFIG_GLOBAL，不污染系统配置
-        local git_cfg="$PROJECT_ROOT/config/.gitconfig_mirror"
-        cat > "$git_cfg" << EOF
-[url "${mirror}https://github.com/"]
-    insteadOf = https://github.com/
-EOF
-        export GIT_CONFIG_GLOBAL="$git_cfg"
-
-        # 2) curl / wget / aria2c — 导出同名函数拦截 URL，追加镜像前缀
-        _mirror_url() {
-            local u="$1"
-            [[ "$u" =~ ^https?://([^/]*\.)?github(\.com|usercontent\.com)/ ]] && echo "${mirror}${u}" || echo "$u"
-        }
-        export -f _mirror_url
-
-        curl() {
-            local a args=()
-            for a in "$@"; do [[ "$a" =~ ^https?:// ]] && a="$(_mirror_url "$a")"; args+=("$a"); done
-            command curl "${args[@]}"
-        }
-        export -f curl
-
-        wget() {
-            local a args=()
-            for a in "$@"; do [[ "$a" =~ ^https?:// ]] && a="$(_mirror_url "$a")"; args+=("$a"); done
-            command wget "${args[@]}"
-        }
-        export -f wget
-
-        aria2c() {
-            local a args=()
-            for a in "$@"; do [[ "$a" =~ ^https?:// ]] && a="$(_mirror_url "$a")"; args+=("$a"); done
-            command aria2c "${args[@]}"
-        }
-        export -f aria2c
-    else
-        log_info "未配置镜像源，直连 GitHub"
-    fi
-
-    cd "$(dirname "$script")"
-    bash "$script"
-
-    # 清理
-    unset GIT_CONFIG_GLOBAL curl wget aria2c _mirror_url
-    rm -f "$PROJECT_ROOT/config/.gitconfig_mirror"
-    log_info "builder_6.12.23_gki.sh 执行完毕"
-}
-
 # ================================================================
 # 主菜单
 # ================================================================
@@ -675,34 +613,35 @@ main_menu() {
     while true; do
         echo ""
         echo -e "${CYAN}${BOLD}═══ 主菜单 ═══${NC}"
+        echo -e "  ${RED}米系6.12设备暂不可用${NC}"
+        echo ""
         echo -e "  ${YELLOW}建议按顺序配置一遍${NC}"
         echo ""
         echo -ne "  1) 镜像源配置"
         echo -e " ${GREEN}→ ${CUSTOM_GITHUB_MIRROR:-直连}${NC}"
         echo "  2) 安装编译依赖"
-        echo "  3) 使用 builder_6.12.23_gki.sh 编译 (独立流程)"
-        echo "  4) 获取内核源码"
-        echo -ne "  5) 选择内核源码路径"
+        echo "  3) 获取内核源码"
+        echo -ne "  4) 选择内核源码路径"
         [ -n "${BUILD_CFG[kernel_source]}" ] && echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}" || echo ""
-        echo -ne "  6) 选择内核版本"
+        echo -ne "  5) 选择内核版本"
         if [ -n "${BUILD_CFG[android_version]}" ] && [ -n "${BUILD_CFG[kernel_version]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  7) 配置 KernelSU"
+        echo -ne "  6) 配置 KernelSU"
         if [ -n "${BUILD_CFG[ksu_variant]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[ksu_variant]} (${BUILD_CFG[ksu_branch]})${NC}"
         else
             echo ""
         fi
-        echo -ne "  8) Droidspaces 容器支持"
+        echo -ne "  7) Droidspaces 容器支持"
         if [ -n "${BUILD_CFG[droidspaces]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[droidspaces]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  9) 其他功能配置 (实验性内容，不推荐使用)"
+        echo -ne "  8) 其他功能配置 (实验性内容，不推荐使用)"
         local enabled_features=()
         [ "${BUILD_CFG[use_zram]}" = "true" ] && enabled_features+=("ZRAM")
         [ "${BUILD_CFG[use_rekernel]}" = "true" ] && enabled_features+=("Re-Kernel")
@@ -737,13 +676,12 @@ main_menu() {
                 setup_dependencies
                 setup_ccache
                 ;;
-            3) run_builder_6_12 ;;
-            4) fetch_kernel_source ;;
-            5) config_kernel_source ;;
-            6) config_kernel_version ;;
-            7) config_kernelsu ;;
-            8) config_droidspaces ;;
-            9) config_features ;;
+            3) fetch_kernel_source ;;
+            4) config_kernel_source ;;
+            5) config_kernel_version ;;
+            6) config_kernelsu ;;
+            7) config_droidspaces ;;
+            8) config_features ;;
             0) config_optional ;;
             s)
                 # 验证必要配置
