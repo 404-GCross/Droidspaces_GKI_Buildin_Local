@@ -680,6 +680,36 @@ config_kernel_from_source_package() {
 }
 
 # ================================================================
+# 解压内核源码压缩包
+# ================================================================
+extract_kernel_source_tarball() {
+    local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
+    [ -z "$tarball" ] && return 0
+
+    if [ -z "${BUILD_CFG[kernel_source]}" ]; then
+        if [ -f "$tarball" ]; then
+            log_step "解压内核源码包"
+            local extracted_dir="$PROJECT_ROOT/$(basename "${tarball%.tar.gz}")"
+            if [ -d "$extracted_dir" ]; then
+                log_info "已存在 $extracted_dir，跳过解压"
+            else
+                tar -xzf "$tarball" -C "$PROJECT_ROOT"
+            fi
+            if [ -d "$extracted_dir/common" ]; then
+                BUILD_CFG[kernel_source]="$extracted_dir"
+                log_info "内核源码路径: $extracted_dir"
+            elif [ -d "$PROJECT_ROOT/common" ]; then
+                BUILD_CFG[kernel_source]="$PROJECT_ROOT"
+                log_info "内核源码路径: $PROJECT_ROOT"
+            fi
+        else
+            log_error "源码包不存在: $tarball"
+            return 1
+        fi
+    fi
+}
+
+# ================================================================
 # 主菜单
 # ================================================================
 
@@ -780,6 +810,7 @@ main_menu() {
 
                 if confirm "确认配置无误，开始编译?" "y"; then
                     save_config
+                    extract_kernel_source_tarball || continue
                     run_build
                     return $?
                 else
@@ -816,6 +847,7 @@ case "${1:-}" in
         if load_config; then
             log_info "使用保存的配置快速构建..."
             show_config_summary
+            extract_kernel_source_tarball || exit 1
             run_build
         else
             log_error "未找到保存的配置，请先运行 ./build_kernel.sh 进行配置"

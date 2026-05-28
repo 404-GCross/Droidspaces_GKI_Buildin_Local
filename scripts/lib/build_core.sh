@@ -51,32 +51,6 @@ run_build() {
     mkdir -p "$build_dir"
     log_info "构建目录: $build_dir"
 
-    # ==================== 解压脚本获取的内核源码 ====================
-    local kernel_source_tarball="${BUILD_CFG[kernel_source_tarball]:-}"
-    if [ -n "$kernel_source_tarball" ]; then
-        if [ -f "$kernel_source_tarball" ]; then
-            log_step "解压内核源码包"
-            log_info "源码包: $kernel_source_tarball"
-            local extracted_dir="$PROJECT_ROOT/$(basename "${kernel_source_tarball%.tar.gz}")"
-            if [ -d "$extracted_dir" ]; then
-                log_info "已存在 $extracted_dir，跳过解压"
-            else
-                tar -xzf "$kernel_source_tarball" -C "$PROJECT_ROOT"
-            fi
-            if [ -d "$extracted_dir/common" ]; then
-                kernel_source="$extracted_dir"
-                BUILD_CFG[kernel_source]="$extracted_dir"
-            elif [ -d "$PROJECT_ROOT/common" ]; then
-                kernel_source="$PROJECT_ROOT"
-                BUILD_CFG[kernel_source]="$PROJECT_ROOT"
-            fi
-            log_info "内核源码路径: $kernel_source"
-        else
-            log_error "源码包不存在: $kernel_source_tarball"
-            log_info "请重新执行'获取内核源码'(选项3)下载源码包"
-        fi
-    fi
-
     # ==================== 准备内核源码 ====================
     if [ -n "$kernel_source" ] && [ -d "$kernel_source" ]; then
         log_info "使用本地内核源码: $kernel_source"
