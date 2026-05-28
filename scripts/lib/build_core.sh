@@ -209,7 +209,6 @@ EOF
     cat >> "$defconfig" << 'EOF'
 CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
-CONFIG_LOCALVERSION_AUTO=n
 EOF
 
     # 6.12 内核需要 Rust 支持
