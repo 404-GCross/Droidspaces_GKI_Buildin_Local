@@ -41,6 +41,18 @@ apply_kernelsu() {
 
     cd "$kernel_root"
 
+    # 设置 Git 镜像，确保 KernelSU setup.sh 内部的 git clone 也走镜像
+    load_mirror_config
+    local git_cfg=""
+    if [ "${use_custom_mirror:-false}" = "true" ] && [ -n "${CUSTOM_GITHUB_MIRROR:-}" ]; then
+        git_cfg="$PROJECT_ROOT/config/.gitconfig_mirror"
+        cat > "$git_cfg" << EOF
+[url "${CUSTOM_GITHUB_MIRROR}https://github.com/"]
+    insteadOf = https://github.com/
+EOF
+        export GIT_CONFIG_GLOBAL="$git_cfg"
+    fi
+
     case "$ksu_variant" in
         Official)
             log_info "集成 KernelSU 官方版..."
@@ -55,6 +67,10 @@ apply_kernelsu() {
             return 1
             ;;
     esac
+
+    # 清理 Git 镜像配置
+    [ -n "$git_cfg" ] && rm -f "$git_cfg"
+    unset GIT_CONFIG_GLOBAL
 
     # 修复 KernelSU setup.sh 可能产生的递归符号链接
     if [ -d "common/drivers/kernelsu" ]; then
