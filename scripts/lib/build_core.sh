@@ -298,37 +298,13 @@ EOF
         sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" "$build_dir/build/kernel/kleaf/impl/stamp.bzl" 2>/dev/null || true
     fi
 
-    # 配置内核版本名称 (完全对齐 build.yml lines 1301-1327)
-    local clean_ver=""
     if [ -n "$custom_version" ]; then
-        clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
-    elif [ ! -f "build/build.sh" ]; then
-        local bid="ab$((RANDOM % 90000000 + 10000000))"
-        local ghash="" kmi_tag=""
-        ghash=$(git rev-parse --verify HEAD 2>/dev/null | cut -c1-13 || echo "0000000000000")
-        case "$android_ver-$kernel_ver" in
-            "android14-6.1")  kmi_tag="android14-11" ;;
-            "android15-6.6")  kmi_tag="android15-8" ;;
-            "android16-6.12") kmi_tag="android16-5" ;;
-            *)                kmi_tag="$android_ver" ;;
-        esac
-        clean_ver="-${kmi_tag}-${bid}"
-        [ -n "$ghash" ] && clean_ver="-${kmi_tag}-g${ghash}-${bid}"
-    fi
-
-    # Bazel: --save-scmversion → scm_version() 第一行 cat .scmversion 然后 return
-    # tarball 解压后无 .git，只有 .scmversion 能阻止 -maybe-dirty
-    echo -n "$clean_ver" > "$common_dir/.scmversion"
-
-    if [ -n "$clean_ver" ]; then
-        perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${clean_ver}"'"/s' "$common_dir/scripts/setlocalversion" 2>/dev/null || true
+        local clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
+        # 转义 Perl 双引号上下文中的特殊字符 (@ → 数组, $ → 变量)
+        local perl_ver=$(echo "$clean_ver" | sed 's/@/\\@/g; s/\$/\\$/g')
+        perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${perl_ver}"'"/s' "$common_dir/scripts/setlocalversion" 2>/dev/null || true
         sed -i "\$s|echo \"\$res\"|echo \"${clean_ver}\"|" "$common_dir/scripts/setlocalversion" 2>/dev/null || true
         sed -i '/^CONFIG_LOCALVERSION=/ s/="\([^"]*\)"/="'"$clean_ver"'"/' "$common_dir/arch/arm64/configs/gki_defconfig"
-    elif [ ! -f "build/build.sh" ]; then
-        cd "$common_dir"
-        perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${clean_ver}"'\$\{config_localversion\}"/s' ./scripts/setlocalversion 2>/dev/null || true
-        sed -i "\$s|echo \"\$res\"|echo \"${clean_ver}\"|" ./scripts/setlocalversion 2>/dev/null || true
-        cd "$work_kernel"
     fi
 
     # ==================== 设置构建时间 ====================
