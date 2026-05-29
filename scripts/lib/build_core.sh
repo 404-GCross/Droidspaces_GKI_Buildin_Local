@@ -422,7 +422,7 @@ EOF
             cd "$build_dir"
 
             # 下载 Root 管理器 APK (来自 GitHub Actions CI 产物)
-            if [ "$fetch_manager" = "true" ]; then
+            if [ "$fetch_manager" = "true" ] && [ "$ksu_variant" != "None" ]; then
                 log_info "获取 ${ksu_variant} 管理器..."
                 local manager_repo=""
                 local manager_workflow=""

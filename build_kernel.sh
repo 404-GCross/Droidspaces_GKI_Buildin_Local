@@ -476,6 +476,7 @@ config_kernelsu() {
     if [ "${BUILD_CFG[ksu_variant]}" = "None" ]; then
         BUILD_CFG[ksu_branch]="-"
         BUILD_CFG[use_kpm]="disabled (关闭)"
+        BUILD_CFG[fetch_manager]="false"
         log_info "KernelSU: 无 (纯GKI内核)"
         return 0
     fi
