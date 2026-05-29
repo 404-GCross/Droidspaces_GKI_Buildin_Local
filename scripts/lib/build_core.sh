@@ -305,7 +305,7 @@ EOF
     elif [ ! -f "build/build.sh" ]; then
         local bid="ab$((RANDOM % 90000000 + 10000000))"
         local ghash="" kmi_tag=""
-        ghash=$(git rev-parse --verify HEAD 2>/dev/null | cut -c1-13 || echo "")
+        ghash=$(git rev-parse --verify HEAD 2>/dev/null | cut -c1-13 || echo "0000000000000")
         case "$android_ver-$kernel_ver" in
             "android14-6.1")  kmi_tag="android14-11" ;;
             "android15-6.6")  kmi_tag="android15-8" ;;
@@ -316,8 +316,8 @@ EOF
         [ -n "$ghash" ] && clean_ver="-${kmi_tag}-g${ghash}-${bid}"
     fi
 
-    # Bazel: --save-scmversion → scm_version() → cat .scmversion → return (不经过 echo "$res")
-    # 必须先写入 .scmversion，Bazel 才能读到干净版本
+    # Bazel: --save-scmversion → scm_version() 第一行 cat .scmversion 然后 return
+    # tarball 解压后无 .git，只有 .scmversion 能阻止 -maybe-dirty
     echo -n "$clean_ver" > "$common_dir/.scmversion"
 
     if [ -n "$clean_ver" ]; then
