@@ -298,11 +298,14 @@ EOF
         sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" "$build_dir/build/kernel/kleaf/impl/stamp.bzl" 2>/dev/null || true
     fi
 
-    # 构造干净版本后缀，直接替换 $res 输出，彻底消灭 -dirty
+    # 构造干净版本后缀
+    # Bazel 用 --save-scmversion 走 scm_version → cat .scmversion，不经过 echo "$res"
+    # 所以必须先创建 .scmversion；同时 patch $res 保证 make/build.sh 路径也干净
     local clean_ver=""
     if [ -n "$custom_version" ]; then
         clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
     fi
+    echo -n "$clean_ver" > "$common_dir/.scmversion"
     sed -i "\$s|echo \"\$res\"|echo \"${clean_ver}\"|" "$common_dir/scripts/setlocalversion" 2>/dev/null || true
     if [ -n "$clean_ver" ]; then
         local perl_ver=$(echo "$clean_ver" | sed 's/@/\\@/g; s/\$/\\$/g')
