@@ -290,6 +290,8 @@ EOF
     sed -i 's/${scm_version}//' "$common_dir/scripts/setlocalversion"
     # 源码包无 .git 目录会产生 -dirty/-maybe-dirty 后缀，统一去掉
     sed -i 's/-dirty//; s/-maybe-dirty//' "$common_dir/scripts/setlocalversion"
+    # Bazel/kleaf 通过 .scmversion 缓存版本后缀，置空防止 -maybe-dirty
+    echo -n "" > "$common_dir/.scmversion"
 
     if [ -f "build/build.sh" ]; then
         :
