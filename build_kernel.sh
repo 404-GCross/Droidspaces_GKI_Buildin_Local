@@ -586,7 +586,7 @@ config_optional() {
     echo -e "${CYAN}${BOLD}═══ 可选配置 ═══${NC}"
     echo ""
 
-    read -r -p "$(echo -e "${YELLOW}自定义版本名 (可选, 留空跳过):${NC} ")" ver
+    read -r -p "$(echo -e "${YELLOW}自定义版本名 (可选, 留空跳过; ${RED}不宜过长${NC}${YELLOW}, 过长会导致编译失败):${NC} ")" ver
     BUILD_CFG[custom_version]="$ver"
 
     read -r -p "$(echo -e "${YELLOW}自定义构建时间 (可选, N或留空=当前UTC时间):${NC} ")" btime
