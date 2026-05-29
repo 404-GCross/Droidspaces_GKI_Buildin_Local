@@ -846,7 +846,8 @@ main_menu() {
 _cleanup_extracted_source() {
     local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
     local extracted="${BUILD_CFG[kernel_source]}"
-    if [ -n "$tarball" ] && [ -n "$extracted" ] && [ -d "$extracted" ]; then
+    # 仅清理解压产生的子目录，防止误删项目根目录
+    if [ -n "$tarball" ] && [ -n "$extracted" ] && [ -d "$extracted" ] && [ "$extracted" != "$PROJECT_ROOT" ]; then
         log_info "清理解压的源码目录: $extracted"
         rm -rf "$extracted"
     fi
