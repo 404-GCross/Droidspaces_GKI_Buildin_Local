@@ -291,9 +291,11 @@ EOF
 
     cd "$work_kernel"
     sed -i 's/${scm_version}//' "$common_dir/scripts/setlocalversion"
+    # 源码包无 .git 目录会产生 -dirty/-maybe-dirty 后缀，统一去掉
+    sed -i 's/-dirty//; s/-maybe-dirty//' "$common_dir/scripts/setlocalversion"
 
     if [ -f "build/build.sh" ]; then
-        sed -i 's/-dirty//' "$common_dir/scripts/setlocalversion"
+        :
     else
         sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' "$common_dir/BUILD.bazel"
         sed -i '/kmi_symbol_list_strict_mode/d' "$common_dir/BUILD.bazel"
