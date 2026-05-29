@@ -449,9 +449,9 @@ EOF
                     local matched_run=""
                     local page=1
                     while [ $page -le 3 ] && [ -z "$artifact_name" ]; do
-                        local run_ids=$(curl -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/workflows/${manager_workflow}/runs?status=success&per_page=10&page=${page}")" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' || true)
+                        local run_ids=$(curl --connect-timeout 10 -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/workflows/${manager_workflow}/runs?status=success&per_page=10&page=${page}")" 2>/dev/null | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' || true)
                         for rid in $run_ids; do
-                            local all_artifacts=$(curl -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/runs/${rid}/artifacts")" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' || true)
+                            local all_artifacts=$(curl --connect-timeout 10 -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/runs/${rid}/artifacts")" 2>/dev/null | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' || true)
                             # 优先匹配版本号且非 debug
                             if [ -n "$ksu_ver" ]; then
                                 artifact_name=$(echo "$all_artifacts" | grep -F "$ksu_ver" | grep -iv 'debug' | head -1)
@@ -473,9 +473,9 @@ EOF
                         if [ -n "$ksu_ver" ] && ! echo "$artifact_name" | grep -qF "$ksu_ver"; then
                             log_warn "管理器版本可能与内核 KSU v${ksu_ver} 不匹配"
                         fi
-                        curl -LSs -o "$build_dir/$zip_name" "$dl_url" && {
+                        curl --connect-timeout 30 -LSso "$build_dir/$zip_name" "$dl_url" 2>/dev/null && {
                             log_info "管理器: $build_dir/$zip_name"
-                        } || log_warn "管理器下载失败"
+                        } || log_warn "管理器下载失败 (可能需要科学上网)"
                     else
                         log_warn "未找到 ${ksu_variant} 管理器构建产物"
                     fi
