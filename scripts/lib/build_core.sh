@@ -350,14 +350,7 @@ EOF
     KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
     export KCFLAGS
 
-    if [ -f "build/build.sh" ]; then
-        log_info "使用 build.sh 编译..."
-        LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
-            log_error "内核编译失败"
-            return 1
-        }
-                strings "out/${android_ver}-${kernel_ver}/dist/Image" | grep 'Linux version' || true
-    else
+    if [ -f "tools/bazel" ]; then
         log_info "使用 Bazel 编译..."
 
         # modules_install 创建 build/source → 源码树的符号链接，
@@ -383,6 +376,16 @@ EOF
             return 1
         }
         strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version' || true
+    elif [ -f "build/build.sh" ]; then
+        log_info "使用 build.sh 编译..."
+        LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
+            log_error "内核编译失败"
+            return 1
+        }
+        strings "out/${android_ver}-${kernel_ver}/dist/Image" | grep 'Linux version' || true
+    else
+        log_error "未找到支持的构建系统 (tools/bazel 或 build/build.sh)"
+        return 1
     fi
 
     log_info "内核编译成功!"
@@ -391,10 +394,10 @@ EOF
     cd "$build_dir"
 
     local image_path=""
-    if [ -f "$work_kernel/build/build.sh" ]; then
-        image_path="$work_kernel/out/${android_ver}-${kernel_ver}/dist/Image"
-    else
+    if [ -f "$work_kernel/tools/bazel" ]; then
         image_path="$work_kernel/bazel-bin/common/kernel_aarch64/Image"
+    else
+        image_path="$work_kernel/out/${android_ver}-${kernel_ver}/dist/Image"
     fi
 
     cp "$image_path" "$build_dir/" 2>/dev/null || true
