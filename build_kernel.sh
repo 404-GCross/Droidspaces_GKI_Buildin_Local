@@ -192,6 +192,21 @@ _speedtest_single() {
     echo -e "  速度: ${GREEN}${speed} KB/s${NC}"
 }
 
+# 从 KERNEL_VERSIONS 表查找补丁级别
+_lookup_os_patch_level() {
+    local key="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}"
+    local data="${KERNEL_VERSIONS[$key]:-}"
+    [ -z "$data" ] && return
+    while IFS='|' read -r _ sub patch rev; do
+        [ -z "$sub" ] && continue
+        if [ "$sub" = "${BUILD_CFG[sub_level]}" ]; then
+            [ -n "$patch" ] && BUILD_CFG[os_patch_level]="$patch"
+            [ -n "$rev" ] && BUILD_CFG[revision]="$rev"
+            return
+        fi
+    done <<< "$data"
+}
+
 # 获取内核源码 (远程脚本)
 fetch_kernel_source() {
     echo ""
@@ -227,6 +242,7 @@ fetch_kernel_source() {
             BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
             BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
             BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
+            _lookup_os_patch_level
             log_info "已自动设置内核版本: ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
         fi
     fi
@@ -672,6 +688,7 @@ config_kernel_from_source_package() {
         BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
         BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
         BUILD_CFG[kernel_source_tarball]="$chosen"
+        _lookup_os_patch_level
         log_info "已识别内核版本: ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
         log_info "源码包: $chosen (将在编译时解压)"
     else

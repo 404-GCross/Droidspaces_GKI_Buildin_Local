@@ -415,7 +415,9 @@ EOF
             else
                 tag="${os_patch}"
             fi
-            local zip_name="${android_ver}-${kernel_ver}.${sub_level}-${tag}-AnyKernel3.zip"
+            local zip_name="${android_ver}-${kernel_ver}.${sub_level}"
+            [ -n "$tag" ] && zip_name="${zip_name}-${tag}"
+            zip_name="${zip_name}-AnyKernel3.zip"
             cp "$build_dir/Image" ./Image 2>/dev/null || true
             zip -r "../$zip_name" ./* -x ".git/*"
             log_info "AnyKernel3 包: $build_dir/$zip_name"
