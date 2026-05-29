@@ -9,7 +9,7 @@
 # 应用 KernelSU
 apply_kernelsu() {
     local kernel_root="$1"
-    local ksu_variant="$2"       # Official / ReSukiSU / Next / None
+    local ksu_variant="$2"       # Official / ReSukiSU / None
     local ksu_branch="$3"        # Stable(标准) / Dev(开发)
 
     [ "$ksu_variant" = "None" ] && return 0
