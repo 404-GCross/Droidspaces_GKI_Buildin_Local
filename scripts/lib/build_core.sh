@@ -413,7 +413,13 @@ EOF
             if [ "$ksu_variant" = "None" ]; then
                 tag="NoRoot"
             else
-                tag="${os_patch}"
+                case "$ksu_variant" in
+                    Official) tag="KernelSU" ;;
+                    *) tag="$ksu_variant" ;;
+                esac
+                local ksu_ver=""
+                [ -f "$work_kernel/KernelSU/.ksu_version" ] && ksu_ver=$(cat "$work_kernel/KernelSU/.ksu_version")
+                [ -n "$ksu_ver" ] && tag="${tag}(${ksu_ver})"
             fi
             local zip_name="${android_ver}-${kernel_ver}.${sub_level}"
             [ -n "$tag" ] && zip_name="${zip_name}-${tag}"
