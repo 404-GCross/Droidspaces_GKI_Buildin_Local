@@ -441,9 +441,9 @@ EOF
                     local matched_run=""
                     local page=1
                     while [ $page -le 3 ] && [ -z "$artifact_name" ]; do
-                        local run_ids=$(curl -LSs "https://api.github.com/repos/${manager_repo}/actions/workflows/${manager_workflow}/runs?status=success&per_page=10&page=${page}" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' || true)
+                        local run_ids=$(curl -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/workflows/${manager_workflow}/runs?status=success&per_page=10&page=${page}")" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' || true)
                         for rid in $run_ids; do
-                            local all_artifacts=$(curl -LSs "https://api.github.com/repos/${manager_repo}/actions/runs/${rid}/artifacts" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' || true)
+                            local all_artifacts=$(curl -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/runs/${rid}/artifacts")" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' || true)
                             # 优先匹配版本号且非 debug
                             if [ -n "$ksu_ver" ]; then
                                 artifact_name=$(echo "$all_artifacts" | grep -F "$ksu_ver" | grep -iv 'debug' | head -1)
