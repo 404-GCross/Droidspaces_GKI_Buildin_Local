@@ -132,7 +132,7 @@ run_build() {
     # ==================== 提取实际子版本号 ====================
     local actual_sub="$sub_level"
     if [ -f "$common_dir/Makefile" ]; then
-        local extracted=$(grep '^SUBLEVEL = ' "$common_dir/Makefile" | awk '{print $3}')
+        local extracted=$(grep '^SUBLEVEL = ' "$common_dir/Makefile" | awk '{print $3}' || true)
         [ -n "$extracted" ] && actual_sub="$extracted"
     fi
     log_info "实际子版本号: $actual_sub"
@@ -245,7 +245,7 @@ EOF
         fi
     fi
 
-    sed -i 's/check_defconfig//' "$common_dir/build.config.gki"
+    [ -f "$common_dir/build.config.gki" ] && sed -i 's/check_defconfig//' "$common_dir/build.config.gki" || true
 
     # ZRAM 配置
     if [ "$use_zram" = "true" ]; then

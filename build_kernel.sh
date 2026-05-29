@@ -171,8 +171,8 @@ _speedtest_single() {
 
     echo -n "  下载测速中 ... "
     local start=$(date +%s%N)
-    local size=$(curl -LSs -o /dev/null --max-time "$timeout" -w "%{size_download}" "$url" 2>/dev/null)
-    local ret=$?
+    local size="" ret=0
+    size=$(curl -LSs -o /dev/null --max-time "$timeout" -w "%{size_download}" "$url" 2>/dev/null) || ret=$?
     local end=$(date +%s%N)
     local elapsed=$(( (end - start) / 1000000 ))
 
@@ -220,8 +220,9 @@ fetch_kernel_source() {
     mkdir -p "$PROJECT_ROOT/kernel-sources"
 
     local tmp_out="/tmp/fetch_kernel_output.log"
-    bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out"
-    local ret=${PIPESTATUS[0]}
+    local ret=0
+    bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out" || ret=${PIPESTATUS[0]}
+    ret=${ret:-${PIPESTATUS[0]}}
 
     if [ $ret -ne 0 ]; then
         log_error "内核源码获取失败 (退出码: $ret)"
@@ -458,7 +459,7 @@ config_kernel_version() {
         subs+=("$sub")
         patches+=("$patch")
         revs+=("$rev")
-    done <<< "$data"
+    done <<< "$data" || true
 
     local sub_result=$(select_option "" "${labels[@]}")
     local sub_idx="${sub_result%%$'\t'*}"

@@ -56,11 +56,17 @@ EOF
     case "$ksu_variant" in
         Official)
             log_info "集成 KernelSU 官方版..."
-            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh")" | bash $branch_flag
+            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh")" | bash $branch_flag || {
+                log_error "KernelSU 官方版 setup.sh 执行失败"
+                return 1
+            }
             ;;
         ReSukiSU)
             log_info "集成 ReSukiSU..."
-            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh")" | bash $branch_flag
+            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh")" | bash $branch_flag || {
+                log_error "ReSukiSU setup.sh 执行失败"
+                return 1
+            }
             ;;
         *)
             log_error "未知 KernelSU 变体: $ksu_variant"
@@ -159,7 +165,10 @@ apply_rekernel() {
 
     local tmp_rekernel="/tmp/rekernel"
     rm -rf "$tmp_rekernel"
-    git_clone "https://github.com/Sakion-Team/Re-Kernel.git" "$tmp_rekernel" --depth 1
+    git_clone "https://github.com/Sakion-Team/Re-Kernel.git" "$tmp_rekernel" --depth 1 || {
+        log_error "Re-Kernel 仓库克隆失败"
+        return 1
+    }
 
     local common_dir="$kernel_root/common"
     local drv_dir="$common_dir/drivers/rekernel"
