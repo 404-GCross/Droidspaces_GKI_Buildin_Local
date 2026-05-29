@@ -699,14 +699,12 @@ extract_kernel_source_tarball() {
             if [ -d "$extracted_dir" ]; then
                 log_info "已存在 $extracted_dir，跳过解压"
             else
-                tar -xzf "$tarball" -C "$PROJECT_ROOT"
+                mkdir -p "$extracted_dir"
+                tar -xzf "$tarball" -C "$extracted_dir" --strip-components=1
             fi
             if [ -d "$extracted_dir/common" ]; then
                 BUILD_CFG[kernel_source]="$extracted_dir"
                 log_info "内核源码路径: $extracted_dir"
-            elif [ -d "$PROJECT_ROOT/common" ]; then
-                BUILD_CFG[kernel_source]="$PROJECT_ROOT"
-                log_info "内核源码路径: $PROJECT_ROOT"
             fi
         else
             log_error "源码包不存在: $tarball"
