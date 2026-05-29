@@ -57,7 +57,6 @@ KERNEL_SOURCE="${BUILD_CFG[kernel_source]}"
 KERNEL_SOURCE_TARBALL="${BUILD_CFG[kernel_source_tarball]:-}"
 OUTPUT_DIR="${BUILD_CFG[output_dir]}"
 PACKAGE_BOOT="${BUILD_CFG[package_boot]}"
-FETCH_MANAGER="${BUILD_CFG[fetch_manager]}"
 EOF
     log_info "配置已保存到 $BUILD_CONFIG_FILE"
 }
@@ -83,7 +82,6 @@ load_config() {
         BUILD_CFG[kernel_source_tarball]="${KERNEL_SOURCE_TARBALL:-}"
         BUILD_CFG[output_dir]="${OUTPUT_DIR:-$PROJECT_ROOT/build/out}"
         BUILD_CFG[package_boot]="${PACKAGE_BOOT:-true}"
-        BUILD_CFG[fetch_manager]="${FETCH_MANAGER:-false}"
         return 0
     fi
     return 1
@@ -492,7 +490,6 @@ config_kernelsu() {
     if [ "${BUILD_CFG[ksu_variant]}" = "None" ]; then
         BUILD_CFG[ksu_branch]="-"
         BUILD_CFG[use_kpm]="disabled (关闭)"
-        BUILD_CFG[fetch_manager]="false"
         log_info "KernelSU: 无 (纯GKI内核)"
         return 0
     fi
@@ -506,15 +503,6 @@ config_kernelsu() {
     esac
 
     log_info "KernelSU: ${BUILD_CFG[ksu_variant]} / ${BUILD_CFG[ksu_branch]}"
-
-    # 询问是否获取 Root 管理器 APK
-    echo ""
-    if confirm "是否获取 Root 管理器 APK (下载 CI 构建产物)?" "y"; then
-        BUILD_CFG[fetch_manager]="true"
-        log_info "将在编译完成后下载管理器"
-    else
-        BUILD_CFG[fetch_manager]="false"
-    fi
 }
 
 # Droidspaces 容器支持配置

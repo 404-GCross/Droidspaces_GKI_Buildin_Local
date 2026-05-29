@@ -22,8 +22,6 @@ BUILD_CFG[droidspaces]="off"
 BUILD_CFG[kernel_source]=""
 BUILD_CFG[output_dir]=""
 BUILD_CFG[package_boot]="true"
-BUILD_CFG[fetch_manager]="false"
-
 run_build() {
     log_step "开始内核构建"
 
@@ -42,7 +40,6 @@ run_build() {
     local build_time="${BUILD_CFG[build_time]}"
 
     local package_boot="${BUILD_CFG[package_boot]:-true}"
-    local fetch_manager="${BUILD_CFG[fetch_manager]:-false}"
 
     local config_id="${android_ver}-${kernel_ver}-${sub_level}"
 
@@ -431,57 +428,21 @@ EOF
             log_info "AnyKernel3 包: $build_dir/$zip_name"
             cd "$build_dir"
 
-            # 下载 Root 管理器 APK (来自 GitHub Actions CI 产物)
-            if [ "$fetch_manager" = "true" ] && [ "$ksu_variant" != "None" ]; then
-                log_info "获取 ${ksu_variant} 管理器..."
-                local manager_repo=""
-                local manager_workflow=""
-                case "$ksu_variant" in
-                    ReSukiSU) manager_repo="ReSukiSU/ReSukiSU"; manager_workflow="build-manager.yml" ;;
-                    Official) manager_repo="tiann/KernelSU"; manager_workflow="build-manager.yml" ;;
-                esac
-                # 读取内核集成的 KSU 版本号
+            # 提示用户手动获取管理器
+            if [ "$ksu_variant" != "None" ]; then
                 local ksu_ver=""
                 [ -f "$work_kernel/KernelSU/.ksu_version" ] && ksu_ver=$(cat "$work_kernel/KernelSU/.ksu_version")
-                if [ -n "$manager_repo" ]; then
-                    # 尝试匹配与内核相同 KSU 版本的 manager (最多查询 30 个历史 run)
-                    local artifact_name=""
-                    local matched_run=""
-                    local page=1
-                    while [ $page -le 3 ] && [ -z "$artifact_name" ]; do
-                        local run_ids=$(curl --connect-timeout 10 -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/workflows/${manager_workflow}/runs?status=success&per_page=10&page=${page}")" 2>/dev/null | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' || true)
-                        for rid in $run_ids; do
-                            local all_artifacts=$(curl --connect-timeout 10 -LSs "$(mirror_github "https://api.github.com/repos/${manager_repo}/actions/runs/${rid}/artifacts")" 2>/dev/null | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' || true)
-                            # 优先匹配版本号且非 debug
-                            if [ -n "$ksu_ver" ]; then
-                                artifact_name=$(echo "$all_artifacts" | grep -F "$ksu_ver" | grep -iv 'debug' | head -1)
-                            fi
-                            # 无版本号匹配则取第一个非 debug
-                            [ -z "$artifact_name" ] && artifact_name=$(echo "$all_artifacts" | grep -iv 'debug' | head -1)
-                            if [ -n "$artifact_name" ]; then
-                                matched_run="$rid"
-                                break
-                            fi
-                        done
-                        page=$((page + 1))
-                    done
-                    if [ -n "$artifact_name" ]; then
-                        local zip_name="${ksu_variant}-manager.zip"
-                        local encoded_name=$(printf '%s' "$artifact_name" | sed 's/(/\%28/g; s/)/\%29/g; s/ /\%20/g')
-                        local dl_url="https://nightly.link/${manager_repo}/actions/runs/${matched_run}/${encoded_name}.zip"
-                        log_info "下载: ${artifact_name}"
-                        if [ -n "$ksu_ver" ] && ! echo "$artifact_name" | grep -qF "$ksu_ver"; then
-                            log_warn "管理器版本可能与内核 KSU v${ksu_ver} 不匹配"
-                        fi
-                        curl --connect-timeout 30 -LSso "$build_dir/$zip_name" "$dl_url" 2>/dev/null && {
-                            log_info "管理器: $build_dir/$zip_name"
-                        } || log_warn "管理器下载失败 (可能需要科学上网)"
-                    else
-                        log_warn "未找到 ${ksu_variant} 管理器构建产物"
-                    fi
-                else
-                    log_warn "${ksu_variant} 暂不支持管理器下载"
-                fi
+                local manager_url=""
+                case "$ksu_variant" in
+                    ReSukiSU) manager_url="https://github.com/ReSukiSU/ReSukiSU/actions/workflows/build-manager.yml" ;;
+                    Official) manager_url="https://github.com/tiann/KernelSU/actions/workflows/build-manager.yml" ;;
+                esac
+                echo ""
+                echo -e "  ${YELLOW}提示: 请手动下载 ${ksu_variant} 管理器 APK${NC}"
+                [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}KSU 版本: ${ksu_ver}${NC}"
+                [ -n "$manager_url" ] && echo -e "  ${YELLOW}Actions 页面: ${manager_url}${NC}"
+                echo -e "  ${YELLOW}(需登录 GitHub，找到对应编号的 run → Artifacts 下载 manager zip)${NC}"
+                echo ""
             fi
         else
             log_warn "未找到 AnyKernel3，跳过打包"
