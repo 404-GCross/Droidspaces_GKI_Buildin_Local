@@ -202,9 +202,9 @@ _lookup_os_patch_level() {
         if [ "$sub" = "${BUILD_CFG[sub_level]}" ]; then
             [ -n "$patch" ] && BUILD_CFG[os_patch_level]="$patch"
             [ -n "$rev" ] && BUILD_CFG[revision]="$rev"
-            return
+            return 0
         fi
-    done <<< "$data"
+    done <<< "$data" || true
 }
 
 # 获取内核源码 (远程脚本)
