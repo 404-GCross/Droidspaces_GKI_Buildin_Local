@@ -288,17 +288,9 @@ EOF
 
     cd "$work_kernel"
     sed -i 's/${scm_version}//' "$common_dir/scripts/setlocalversion"
-    # 去除 dirty 后缀：静态替换 + 运行时过滤（双保险）
-    echo "正在去除 dirty 后缀..."
-    for f in "$common_dir/scripts/setlocalversion"; do
-        sed -i 's/ -dirty//g' "$f"
-        sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
-    done
-    # Bazel/kleaf 通过 .scmversion 缓存版本后缀，置空防止 -maybe-dirty
-    echo -n "" > "$common_dir/.scmversion"
 
     if [ -f "build/build.sh" ]; then
-        :
+        sed -i 's/-dirty//' "$common_dir/scripts/setlocalversion"
     else
         sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' "$common_dir/BUILD.bazel"
         sed -i '/kmi_symbol_list_strict_mode/d' "$common_dir/BUILD.bazel"
@@ -306,12 +298,15 @@ EOF
         sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" "$build_dir/build/kernel/kleaf/impl/stamp.bzl" 2>/dev/null || true
     fi
 
+    # 构造干净版本后缀，直接替换 $res 输出，彻底消灭 -dirty
+    local clean_ver=""
     if [ -n "$custom_version" ]; then
-        local clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
-        # 转义 Perl 双引号上下文中的特殊字符 (@ → 数组, $ → 变量)
+        clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
+    fi
+    sed -i "\$s|echo \"\$res\"|echo \"${clean_ver}\"|" "$common_dir/scripts/setlocalversion" 2>/dev/null || true
+    if [ -n "$clean_ver" ]; then
         local perl_ver=$(echo "$clean_ver" | sed 's/@/\\@/g; s/\$/\\$/g')
         perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${perl_ver}"'"/s' "$common_dir/scripts/setlocalversion" 2>/dev/null || true
-        sed -i "\$s|echo \"\$res\"|echo \"${clean_ver}\"|" "$common_dir/scripts/setlocalversion" 2>/dev/null || true
         sed -i '/^CONFIG_LOCALVERSION=/ s/="\([^"]*\)"/="'"$clean_ver"'"/' "$common_dir/arch/arm64/configs/gki_defconfig"
     fi
 
