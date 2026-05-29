@@ -288,8 +288,12 @@ EOF
 
     cd "$work_kernel"
     sed -i 's/${scm_version}//' "$common_dir/scripts/setlocalversion"
-    # 源码包无 .git 目录会产生 -dirty/-maybe-dirty 后缀，统一去掉
-    sed -i 's/-maybe-dirty//; s/-dirty//' "$common_dir/scripts/setlocalversion"
+    # 去除 dirty 后缀：静态替换 + 运行时过滤（双保险）
+    echo "正在去除 dirty 后缀..."
+    for f in "$common_dir/scripts/setlocalversion"; do
+        sed -i 's/ -dirty//g' "$f"
+        sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
+    done
     # Bazel/kleaf 通过 .scmversion 缓存版本后缀，置空防止 -maybe-dirty
     echo -n "" > "$common_dir/.scmversion"
 
