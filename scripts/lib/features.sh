@@ -73,11 +73,15 @@ EOF
     unset GIT_CONFIG_GLOBAL
 
     # 修复 KernelSU setup.sh 可能产生的递归符号链接
-    if [ -d "common/drivers/kernelsu" ]; then
-        find common/drivers/kernelsu -maxdepth 3 -type l -name kernel -exec sh -c '
+    for dir in "." "common/drivers/kernelsu"; do
+        [ -d "$dir" ] && find "$dir" -maxdepth 3 -type l -name kernel -exec sh -c '
             t=$(readlink -f "$1" 2>/dev/null) || { rm -f "$1"; exit 0; }
+            # 检测自引用: 如果目标路径包含自身则删除
+            case "$t" in
+                *"$1"*) rm -f "$1" ;;
+            esac
         ' _ {} \; 2>/dev/null || true
-    fi
+    done
 
     # 计算并保存 KSU 版本号 (所有变体)
     if [ -d "KernelSU/.git" ]; then
