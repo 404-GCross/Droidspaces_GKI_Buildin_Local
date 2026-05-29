@@ -303,6 +303,11 @@ EOF
 
     if [ -n "$custom_version" ]; then
         local clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
+        # 内核 LOCALVERSION 最长 64 字符，截断过长的自定义部分
+        if [ ${#clean_ver} -gt 24 ]; then
+            log_warn "自定义版本名 ${clean_ver} 过长，自动截断"
+            clean_ver="${clean_ver:0:24}"
+        fi
         # 转义 Perl 双引号上下文中的特殊字符 (@ → 数组, $ → 变量)
         local perl_ver=$(echo "$clean_ver" | sed 's/@/\\@/g; s/\$/\\$/g')
         perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${perl_ver}"'"/s' "$common_dir/scripts/setlocalversion" 2>/dev/null || true
