@@ -831,7 +831,9 @@ main_menu() {
                 if confirm "确认配置无误，开始编译?" "y"; then
                     save_config
                     run_build
-                    return $?
+                    local build_ret=$?
+                    _cleanup_extracted_source
+                    return $build_ret
                 else
                     log_info "返回主菜单"
                 fi
@@ -852,6 +854,16 @@ main_menu() {
     done
 }
 
+# 编译完成后清理解压的源码目录
+_cleanup_extracted_source() {
+    local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
+    local extracted="${BUILD_CFG[kernel_source]}"
+    if [ -n "$tarball" ] && [ -n "$extracted" ] && [ -d "$extracted" ]; then
+        log_info "清理解压的源码目录: $extracted"
+        rm -rf "$extracted"
+    fi
+}
+
 # ================================================================
 # 入口
 # ================================================================
@@ -868,6 +880,7 @@ case "${1:-}" in
             show_config_summary
             extract_kernel_source_tarball || exit 1
             run_build
+            _cleanup_extracted_source
         else
             log_error "未找到保存的配置，请先运行 ./build_kernel.sh 进行配置"
             exit 1
