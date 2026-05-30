@@ -701,12 +701,14 @@ extract_kernel_source_tarball() {
     if [ -z "${BUILD_CFG[kernel_source]}" ] || [ ! -d "${BUILD_CFG[kernel_source]}" ]; then
         if [ -f "$tarball" ]; then
             log_step "解压内核源码包"
-            local extracted_dir="/home/GCross/kernel-sources/$(basename "${tarball%.tar.gz}")"
+            local extracted_dir="$HOME/kernel-sources/$(basename "${tarball%.tar.gz}")"
             if [ -d "$extracted_dir" ]; then
                 log_info "已存在 $extracted_dir，跳过解压"
             else
                 mkdir -p "$extracted_dir"
                 tar -xzf "$tarball" -C "$extracted_dir" --strip-components=1
+                # 删除压缩包自带的 Bazel 缓存（含其他机器的硬编码路径）
+                rm -rf "$extracted_dir/out" 2>/dev/null || true
             fi
             if [ -d "$extracted_dir/common" ]; then
                 BUILD_CFG[kernel_source]="$extracted_dir"

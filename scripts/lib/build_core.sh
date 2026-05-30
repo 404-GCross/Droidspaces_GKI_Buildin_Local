@@ -50,8 +50,6 @@ run_build() {
 
     # 清理旧编译产物
     rm -f "$build_dir"/*.zip "$build_dir"/Image "$build_dir"/Image.* 2>/dev/null || true
-    # 清理内核源码中残留的 Bazel 缓存（可能含其他机器的硬编码路径）
-    rm -rf "${kernel_source}/out" 2>/dev/null || true
 
     # ==================== 准备内核源码 ====================
     if [ -n "$kernel_source" ] && [ -d "$kernel_source" ]; then
