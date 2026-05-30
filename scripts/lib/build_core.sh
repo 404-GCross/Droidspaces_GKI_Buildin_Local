@@ -441,6 +441,7 @@ EOF
                 [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}KSU 版本: ${ksu_ver}${NC}"
                 [ -n "$manager_url" ] && echo -e "  ${YELLOW}Actions 页面: ${manager_url}${NC}"
                 echo -e "  ${YELLOW}(需登录 GitHub，找到 name 含版本号的 run → Artifacts 下载 manager zip)${NC}"
+                echo -e "  ${YELLOW}注：选择 main 分支最新的即可${NC}"
                 echo ""
             fi
         else
