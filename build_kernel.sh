@@ -831,8 +831,8 @@ main_menu() {
 
                 if confirm "确认配置无误，开始编译?" "y"; then
                     save_config
-                    run_build
-                    local build_ret=$?
+                    local build_ret=0
+                    run_build || build_ret=$?
                     _cleanup_extracted_source
                     return $build_ret
                 else
@@ -882,7 +882,7 @@ case "${1:-}" in
             log_info "使用保存的配置快速构建..."
             show_config_summary
             extract_kernel_source_tarball || exit 1
-            run_build
+            run_build || true
             _cleanup_extracted_source
         else
             log_error "未找到保存的配置，请先运行 ./build_kernel.sh 进行配置"
