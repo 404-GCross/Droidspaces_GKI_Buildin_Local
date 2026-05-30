@@ -431,14 +431,22 @@ EOF
             if [ "$ksu_variant" != "None" ]; then
                 local ksu_ver=""
                 [ -f "$work_kernel/KernelSU/.ksu_version" ] && ksu_ver=$(cat "$work_kernel/KernelSU/.ksu_version")
-                local manager_url=""
+                local manager_url="" base_ver="" commit_num=""
                 case "$ksu_variant" in
-                    ReSukiSU) manager_url="https://github.com/ReSukiSU/ReSukiSU/actions/workflows/build-manager.yml" ;;
-                    Official) manager_url="https://github.com/tiann/KernelSU/actions/workflows/build-manager.yml" ;;
+                    ReSukiSU)
+                        manager_url="https://github.com/ReSukiSU/ReSukiSU/actions/workflows/build-manager.yml"
+                        base_ver=30700
+                        ;;
+                    Official)
+                        manager_url="https://github.com/tiann/KernelSU/actions/workflows/build-manager.yml"
+                        base_ver=20000
+                        ;;
                 esac
+                [ -n "$ksu_ver" ] && [ -n "$base_ver" ] && commit_num=$((ksu_ver - base_ver))
                 echo ""
                 echo -e "  ${YELLOW}提示: 请手动下载 ${ksu_variant} 管理器 APK${NC}"
                 [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}KSU 版本: ${ksu_ver}${NC}"
+                [ -n "$commit_num" ] && echo -e "  ${YELLOW}对应第 ${commit_num} 次提交，找 Actions 页 #${commit_num} 附近的 run${NC}"
                 [ -n "$manager_url" ] && echo -e "  ${YELLOW}Actions 页面: ${manager_url}${NC}"
                 echo -e "  ${YELLOW}(需登录 GitHub，找到对应编号的 run → Artifacts 下载 manager zip)${NC}"
                 echo ""
