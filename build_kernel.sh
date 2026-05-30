@@ -740,7 +740,12 @@ main_menu() {
         echo -e " ${GREEN}→ ${CUSTOM_GITHUB_MIRROR:-直连}${NC}"
         echo "  2) 安装编译依赖"
         echo "  3) 获取内核源码"
-        echo "  4) 选择脚本获取的内核源码"
+        echo -ne "  4) 选择脚本获取的内核源码"
+        if [ -n "${BUILD_CFG[kernel_source_tarball]}" ]; then
+            echo -e " ${GREEN}→ $(basename "${BUILD_CFG[kernel_source_tarball]}")${NC}"
+        else
+            echo ""
+        fi
         echo -ne "  5) 选择内核源码路径"
         [ -n "${BUILD_CFG[kernel_source]}" ] && echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}" || echo ""
         echo -ne "  6) 选择内核版本"
