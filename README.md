@@ -18,6 +18,8 @@
 
 注：脚本代码99%由claude code+deepseek生成，应该会有bug，有问题欢迎issues反馈
 
+脚本截图：
+
 <img width="999" height="509" alt="image" src="https://github.com/user-attachments/assets/18ceeef2-83c5-46ab-9a9a-ca43d9fecdc9" />
 
 
