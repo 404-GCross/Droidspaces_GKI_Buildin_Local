@@ -693,7 +693,7 @@ extract_kernel_source_tarball() {
     local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
     [ -z "$tarball" ] && return 0
 
-    if [ -z "${BUILD_CFG[kernel_source]}" ]; then
+    if [ -z "${BUILD_CFG[kernel_source]}" ] || [ ! -d "${BUILD_CFG[kernel_source]}" ]; then
         if [ -f "$tarball" ]; then
             log_step "解压内核源码包"
             local extracted_dir="$PROJECT_ROOT/$(basename "${tarball%.tar.gz}")"
