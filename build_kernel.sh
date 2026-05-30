@@ -53,7 +53,12 @@ USE_ZRAM="${BUILD_CFG[use_zram]}"
 USE_KPM="${BUILD_CFG[use_kpm]}"
 USE_REKERNEL="${BUILD_CFG[use_rekernel]}"
 DROIDSPACES="${BUILD_CFG[droidspaces]}"
-KERNEL_SOURCE="${BUILD_CFG[kernel_source]}"
+# 如果有压缩包，kernel_source 由解压自动管理，不持久化
+if [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
+    KERNEL_SOURCE="${BUILD_CFG[kernel_source]}"
+else
+    KERNEL_SOURCE=""
+fi
 KERNEL_SOURCE_TARBALL="${BUILD_CFG[kernel_source_tarball]:-}"
 OUTPUT_DIR="${BUILD_CFG[output_dir]}"
 PACKAGE_BOOT="${BUILD_CFG[package_boot]}"
@@ -858,6 +863,7 @@ _cleanup_extracted_source() {
     if [ -n "$tarball" ] && [ -n "$extracted" ] && [ -d "$extracted" ] && [ "$extracted" != "$PROJECT_ROOT" ]; then
         log_info "清理解压的源码目录: $extracted"
         rm -rf "$extracted"
+        BUILD_CFG[kernel_source]=""
     fi
 }
 
