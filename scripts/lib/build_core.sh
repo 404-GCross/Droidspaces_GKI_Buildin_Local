@@ -287,8 +287,6 @@ EOF
     log_step "配置内核版本名称"
 
     cd "$work_kernel"
-    sed -i 's/${scm_version}//' "$common_dir/scripts/setlocalversion"
-
     if [ -f "build/build.sh" ]; then
         sed -i 's/-dirty//' "$common_dir/scripts/setlocalversion"
     else
@@ -298,18 +296,14 @@ EOF
         sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" "$build_dir/build/kernel/kleaf/impl/stamp.bzl" 2>/dev/null || true
     fi
 
-    local ver_suffix=""
     if [ -n "$custom_version" ]; then
-        ver_suffix=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
-        local perl_ver=$(echo "$ver_suffix" | sed 's/@/\\@/g; s/\$/\\$/g')
+        local clean_ver=$(echo "$custom_version" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+//')
+        # 转义 Perl 双引号上下文中的特殊字符 (@ → 数组, $ → 变量)
+        local perl_ver=$(echo "$clean_ver" | sed 's/@/\\@/g; s/\$/\\$/g')
         perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${perl_ver}"'"/s' "$common_dir/scripts/setlocalversion" 2>/dev/null || true
-        sed -i "\$s|echo \"\$res\"|echo \"${ver_suffix}\"|" "$common_dir/scripts/setlocalversion" 2>/dev/null || true
-        sed -i '/^CONFIG_LOCALVERSION=/ s/="\([^"]*\)"/="'"$ver_suffix"'"/' "$common_dir/arch/arm64/configs/gki_defconfig"
+        sed -i "\$s|echo \"\$res\"|echo \"${clean_ver}\"|" "$common_dir/scripts/setlocalversion" 2>/dev/null || true
+        sed -i '/^CONFIG_LOCALVERSION=/ s/="\([^"]*\)"/="'"$clean_ver"'"/' "$common_dir/arch/arm64/configs/gki_defconfig"
     fi
-
-    # tarball 无 .git → scm_version() 兜底输出 -maybe-dirty
-    # 直接注入自定义后缀到 scm_version 函数顶部，让它返回干净版本
-    perl -i -0777 -pe 's/^(scm_version\(\)\s*\{)/$1\n\tprintf "%s" "'"${ver_suffix}"'"\n\treturn\n/' "$common_dir/scripts/setlocalversion" 2>/dev/null || true
 
     # ==================== 设置构建时间 ====================
     if [ -n "$build_time" ] && [ "$build_time" != "N" ] && [ "$build_time" != "n" ]; then
