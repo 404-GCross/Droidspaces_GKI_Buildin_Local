@@ -11,7 +11,7 @@ BUILD_CFG[kernel_version]=""
 BUILD_CFG[sub_level]=""
 BUILD_CFG[os_patch_level]=""
 BUILD_CFG[revision]=""
-BUILD_CFG[ksu_variant]="ReSukiSU"
+BUILD_CFG[ksu_variant]="None"
 BUILD_CFG[ksu_branch]="Stable(标准)"
 BUILD_CFG[custom_version]=""
 BUILD_CFG[build_time]=""
@@ -22,8 +22,6 @@ BUILD_CFG[droidspaces]="off"
 BUILD_CFG[kernel_source]=""
 BUILD_CFG[output_dir]=""
 BUILD_CFG[package_boot]="true"
-BUILD_CFG[fetch_manager]="false"
-
 run_build() {
     log_step "开始内核构建"
 
@@ -42,7 +40,6 @@ run_build() {
     local build_time="${BUILD_CFG[build_time]}"
 
     local package_boot="${BUILD_CFG[package_boot]:-true}"
-    local fetch_manager="${BUILD_CFG[fetch_manager]:-false}"
 
     local config_id="${android_ver}-${kernel_ver}-${sub_level}"
 
@@ -116,56 +113,26 @@ run_build() {
     cd "$build_dir"
 
     local anykernel_dir="$build_dir/AnyKernel3"
-    local kernel_patches="$build_dir/kernel_patches"
-    local sukisu_patches="$build_dir/SukiSU_patch"
-    local action_build="$build_dir/Action-Build"
 
     # AnyKernel3
     if [ ! -d "$anykernel_dir" ]; then
-        git_clone "https://github.com/WildKernels/AnyKernel3.git" "$anykernel_dir" -b "gki-2.0" || {
+        git_clone "https://github.com/404-GCross/AnyKernel3.git" "$anykernel_dir" -b "gki-2.0" || {
             log_error "AnyKernel3 克隆失败，终止编译"
             return 1
         }
         rm -rf "$anykernel_dir/.git" 2>/dev/null || true
     fi
 
-    # 补丁仓库
-    [ ! -d "$kernel_patches" ] && git_clone "https://github.com/WildKernels/kernel_patches.git" "$kernel_patches" || true
-    [ ! -d "$sukisu_patches" ] && git_clone "https://github.com/ShirkNeko/SukiSU_patch.git" "$sukisu_patches" || true
-    [ ! -d "$action_build" ] && git_clone "https://github.com/Numbersf/Action-Build.git" "$action_build" --depth=1 || true
-
     # ==================== 在 build 目录中准备内核源码工作副本 ====================
-    # 对于 repo 结构的内核源码，我们直接在其上操作
-    # 对于非 repo 结构，复制到 build 目录
     local work_kernel="$kernel_source"
 
     # ==================== 备份 defconfig ====================
     cp "$defconfig" "$defconfig.orig"
 
-    # ==================== 应用 Stock Config ====================
-    local stock_src="$PROJECT_ROOT/config/stock_defconfig"
-    if [ -f "$stock_src" ]; then
-        log_info "应用 Stock Config 伪装..."
-        local stock_dst="${common_dir}/arch/arm64/configs/stock_defconfig"
-        mkdir -p "$(dirname "$stock_dst")"
-        cp "$stock_src" "$stock_dst"
-
-        local makefile="$common_dir/kernel/Makefile"
-        if [ -f "$makefile" ]; then
-            local old_rule='$(obj)/config_data: $(KCONFIG_CONFIG) FORCE'
-            local new_rule='$(obj)/config_data: arch/arm64/configs/stock_defconfig FORCE'
-            if grep -qF "$new_rule" "$makefile"; then
-                : # 已完成
-            elif grep -qF "$old_rule" "$makefile"; then
-                sed -i 's|$(obj)/config_data: $(KCONFIG_CONFIG) FORCE|$(obj)/config_data: arch/arm64/configs/stock_defconfig FORCE|' "$makefile"
-            fi
-        fi
-    fi
-
     # ==================== 提取实际子版本号 ====================
     local actual_sub="$sub_level"
     if [ -f "$common_dir/Makefile" ]; then
-        local extracted=$(grep '^SUBLEVEL = ' "$common_dir/Makefile" | awk '{print $3}')
+        local extracted=$(grep '^SUBLEVEL = ' "$common_dir/Makefile" | awk '{print $3}' || true)
         [ -n "$extracted" ] && actual_sub="$extracted"
     fi
     log_info "实际子版本号: $actual_sub"
@@ -209,6 +176,8 @@ run_build() {
 
     # ZRAM
     if [ "$use_zram" = "true" ]; then
+        local sukisu_patches="$build_dir/SukiSU_patch"
+        [ ! -d "$sukisu_patches" ] && git_clone "https://github.com/ShirkNeko/SukiSU_patch.git" "$sukisu_patches" || true
         apply_zram "$work_kernel" "$kernel_ver" "$sukisu_patches"
     fi
 
@@ -239,8 +208,19 @@ CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
 EOF
 
+    # 6.12 内核需要 Rust 支持
+    if [ "$kernel_ver" = "6.12" ]; then
+        cat >> "$defconfig" << 'EOF'
+CONFIG_RUST=y
+CONFIG_ANDROID_BINDER_IPC_RUST=m
+CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
+CONFIG_HEADERS_INSTALL=n
+CONFIG_MODULE_SIG=n
+EOF
+    fi
+
     # KPM 配置 — 仅 KernelSU 变体可用
-    if [ "$ksu_variant" != "None" ] && [[ "$ksu_variant" == "SukiSU" || "$ksu_variant" == "ReSukiSU" || "$ksu_variant" == "Next" ]]; then
+    if [ "$ksu_variant" = "ReSukiSU" ]; then
         if [[ "$use_kpm" == enabled* ]] || [[ "$use_kpm" == patched* ]]; then
             if grep -RqsE '^[[:space:]]*config[[:space:]]+KPM([[:space:]]|$)' "$common_dir" "KernelSU" 2>/dev/null; then
                 echo "CONFIG_KPM=y" >> "$defconfig"
@@ -265,7 +245,7 @@ EOF
         fi
     fi
 
-    sed -i 's/check_defconfig//' "$common_dir/build.config.gki"
+    [ -f "$common_dir/build.config.gki" ] && sed -i 's/check_defconfig//' "$common_dir/build.config.gki" || true
 
     # ZRAM 配置
     if [ "$use_zram" = "true" ]; then
@@ -356,14 +336,16 @@ EOF
     sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
     sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
 
-    if [ -f "build/build.sh" ]; then
-        log_info "使用 build.sh 编译..."
-        LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
-            log_error "内核编译失败"
-            return 1
-        }
-                strings "out/${android_ver}-${kernel_ver}/dist/Image" | grep 'Linux version' || true
-    else
+    # 统一 KCFLAGS
+    KCFLAGS+=" -O2"
+    KCFLAGS+=" -no-canonical-prefixes"
+    KCFLAGS+=" -pipe"
+    KCFLAGS+=" -Wno-error"
+    KCFLAGS+=" -fno-stack-protector"
+    KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
+    export KCFLAGS
+
+    if [ -f "tools/bazel" ]; then
         log_info "使用 Bazel 编译..."
 
         # modules_install 创建 build/source → 源码树的符号链接，
@@ -383,15 +365,22 @@ EOF
         local frag_flag=""
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
 
-        local lto_flag="--lto=thin"
-        [ "$kernel_ver" = "6.12" ] && lto_flag="--lto=none"
-
         cd "$work_kernel"
-        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast $lto_flag $frag_flag //common:kernel_aarch64_dist || {
+        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast --lto=thin $frag_flag //common:kernel_aarch64_dist || {
             log_error "Bazel 编译失败"
             return 1
         }
         strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version' || true
+    elif [ -f "build/build.sh" ]; then
+        log_info "使用 build.sh 编译..."
+        LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
+            log_error "内核编译失败"
+            return 1
+        }
+        strings "out/${android_ver}-${kernel_ver}/dist/Image" | grep 'Linux version' || true
+    else
+        log_error "未找到支持的构建系统 (tools/bazel 或 build/build.sh)"
+        return 1
     fi
 
     log_info "内核编译成功!"
@@ -399,15 +388,14 @@ EOF
     # ==================== 复制编译产物到输出目录 ====================
     cd "$build_dir"
 
-    local src_dir=""
-    if [ -f "$work_kernel/build/build.sh" ]; then
-        src_dir="$work_kernel/out/${android_ver}-${kernel_ver}/dist"
+    local image_path=""
+    if [ -f "$work_kernel/tools/bazel" ]; then
+        image_path="$work_kernel/bazel-bin/common/kernel_aarch64/Image"
     else
-        src_dir="$work_kernel/bazel-bin/common/kernel_aarch64"
+        image_path="$work_kernel/out/${android_ver}-${kernel_ver}/dist/Image"
     fi
 
-    cp "$src_dir/Image" "$build_dir/" 2>/dev/null || true
-    cp "$src_dir/Image.lz4" "$build_dir/" 2>/dev/null || true
+    cp "$image_path" "$build_dir/" 2>/dev/null || true
 
     if [ "$package_boot" != "true" ]; then
         log_info "跳过打包，仅输出内核镜像"
@@ -416,64 +404,41 @@ EOF
         if [ -d "$anykernel_dir" ]; then
             log_step "创建 AnyKernel3 刷入包"
             cd "$anykernel_dir"
-            local zip_name="${android_ver}-${kernel_ver}.${sub_level}-${os_patch}-AnyKernel3.zip"
+            local tag=""
+            if [ "$ksu_variant" = "None" ]; then
+                tag="NoRoot"
+            else
+                case "$ksu_variant" in
+                    Official) tag="KernelSU" ;;
+                    *) tag="$ksu_variant" ;;
+                esac
+                local ksu_ver=""
+                [ -f "$work_kernel/KernelSU/.ksu_version" ] && ksu_ver=$(cat "$work_kernel/KernelSU/.ksu_version")
+                [ -n "$ksu_ver" ] && tag="${tag}(${ksu_ver})"
+            fi
+            local zip_name="${android_ver}-${kernel_ver}.${sub_level}"
+            [ -n "$tag" ] && zip_name="${zip_name}-${tag}"
+            zip_name="${zip_name}-AnyKernel3.zip"
             cp "$build_dir/Image" ./Image 2>/dev/null || true
             zip -r "../$zip_name" ./* -x ".git/*"
             log_info "AnyKernel3 包: $build_dir/$zip_name"
             cd "$build_dir"
 
-            # 下载 Root 管理器 APK (来自 GitHub Actions CI 产物)
-            if [ "$fetch_manager" = "true" ]; then
-                log_info "获取 ${ksu_variant} 管理器..."
-                local manager_repo=""
-                local manager_workflow=""
-                case "$ksu_variant" in
-                    ReSukiSU) manager_repo="ReSukiSU/ReSukiSU"; manager_workflow="build-manager.yml" ;;
-                    SukiSU)   manager_repo="SukiSU-Ultra/SukiSU-Ultra"; manager_workflow="build-manager.yml" ;;
-                    Official) manager_repo="tiann/KernelSU"; manager_workflow="build-manager.yml" ;;
-                esac
-                # 读取内核集成的 KSU 版本号
+            # 提示用户手动获取管理器
+            if [ "$ksu_variant" != "None" ]; then
                 local ksu_ver=""
                 [ -f "$work_kernel/KernelSU/.ksu_version" ] && ksu_ver=$(cat "$work_kernel/KernelSU/.ksu_version")
-                if [ -n "$manager_repo" ]; then
-                    # 尝试匹配与内核相同 KSU 版本的 manager (最多查询 30 个历史 run)
-                    local artifact_name=""
-                    local matched_run=""
-                    local page=1
-                    while [ $page -le 3 ] && [ -z "$artifact_name" ]; do
-                        local run_ids=$(curl -LSs "https://api.github.com/repos/${manager_repo}/actions/workflows/${manager_workflow}/runs?status=success&per_page=10&page=${page}" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' || true)
-                        for rid in $run_ids; do
-                            local all_artifacts=$(curl -LSs "https://api.github.com/repos/${manager_repo}/actions/runs/${rid}/artifacts" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' || true)
-                            # 优先匹配版本号且非 debug
-                            if [ -n "$ksu_ver" ]; then
-                                artifact_name=$(echo "$all_artifacts" | grep -F "$ksu_ver" | grep -iv 'debug' | head -1)
-                            fi
-                            # 无版本号匹配则取第一个非 debug
-                            [ -z "$artifact_name" ] && artifact_name=$(echo "$all_artifacts" | grep -iv 'debug' | head -1)
-                            if [ -n "$artifact_name" ]; then
-                                matched_run="$rid"
-                                break
-                            fi
-                        done
-                        page=$((page + 1))
-                    done
-                    if [ -n "$artifact_name" ]; then
-                        local zip_name="${ksu_variant}-manager.zip"
-                        local encoded_name=$(printf '%s' "$artifact_name" | sed 's/(/\%28/g; s/)/\%29/g; s/ /\%20/g')
-                        local dl_url="https://nightly.link/${manager_repo}/actions/runs/${matched_run}/${encoded_name}.zip"
-                        log_info "下载: ${artifact_name}"
-                        if [ -n "$ksu_ver" ] && ! echo "$artifact_name" | grep -qF "$ksu_ver"; then
-                            log_warn "管理器版本可能与内核 KSU v${ksu_ver} 不匹配"
-                        fi
-                        curl -LSs -o "$build_dir/$zip_name" "$dl_url" && {
-                            log_info "管理器: $build_dir/$zip_name"
-                        } || log_warn "管理器下载失败"
-                    else
-                        log_warn "未找到 ${ksu_variant} 管理器构建产物"
-                    fi
-                else
-                    log_warn "${ksu_variant} 暂不支持管理器下载"
-                fi
+                local manager_url=""
+                case "$ksu_variant" in
+                    ReSukiSU) manager_url="https://github.com/ReSukiSU/ReSukiSU/actions/workflows/build-manager.yml" ;;
+                    Official) manager_url="https://github.com/tiann/KernelSU/actions/workflows/build-manager.yml" ;;
+                esac
+                echo ""
+                echo -e "  ${YELLOW}提示: 请手动下载 ${ksu_variant} 管理器 APK${NC}"
+                [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}KSU 版本: ${ksu_ver}${NC}"
+                [ -n "$manager_url" ] && echo -e "  ${YELLOW}Actions 页面: ${manager_url}${NC}"
+                echo -e "  ${YELLOW}(需登录 GitHub，找到对应编号的 run → Artifacts 下载 manager zip)${NC}"
+                echo ""
             fi
         else
             log_warn "未找到 AnyKernel3，跳过打包"
@@ -508,7 +473,7 @@ EOF
     if [ "$package_boot" = "true" ]; then
         ls -lh "$build_dir"/*.zip 2>/dev/null || true
     fi
-    ls -lh "$build_dir"/Image "$build_dir"/Image.lz4 2>/dev/null || true
+    ls -lh "$build_dir"/Image 2>/dev/null || true
     echo ""
 
     if [ ${#rej_files[@]} -gt 0 ]; then

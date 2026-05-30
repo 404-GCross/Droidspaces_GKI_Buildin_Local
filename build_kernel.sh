@@ -53,10 +53,15 @@ USE_ZRAM="${BUILD_CFG[use_zram]}"
 USE_KPM="${BUILD_CFG[use_kpm]}"
 USE_REKERNEL="${BUILD_CFG[use_rekernel]}"
 DROIDSPACES="${BUILD_CFG[droidspaces]}"
-KERNEL_SOURCE="${BUILD_CFG[kernel_source]}"
+# 如果有压缩包，kernel_source 由解压自动管理，不持久化
+if [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
+    KERNEL_SOURCE="${BUILD_CFG[kernel_source]}"
+else
+    KERNEL_SOURCE=""
+fi
+KERNEL_SOURCE_TARBALL="${BUILD_CFG[kernel_source_tarball]:-}"
 OUTPUT_DIR="${BUILD_CFG[output_dir]}"
 PACKAGE_BOOT="${BUILD_CFG[package_boot]}"
-FETCH_MANAGER="${BUILD_CFG[fetch_manager]}"
 EOF
     log_info "配置已保存到 $BUILD_CONFIG_FILE"
 }
@@ -70,7 +75,7 @@ load_config() {
         BUILD_CFG[sub_level]="${SUB_LEVEL:-}"
         BUILD_CFG[os_patch_level]="${OS_PATCH_LEVEL:-}"
         BUILD_CFG[revision]="${REVISION:-}"
-        BUILD_CFG[ksu_variant]="${KSU_VARIANT:-ReSukiSU}"
+        BUILD_CFG[ksu_variant]="${KSU_VARIANT:-None}"
         BUILD_CFG[ksu_branch]="${KSU_BRANCH:-Stable(标准)}"
         BUILD_CFG[custom_version]="${CUSTOM_VERSION:-}"
         BUILD_CFG[build_time]="${BUILD_TIME:-}"
@@ -79,9 +84,9 @@ load_config() {
         BUILD_CFG[use_rekernel]="${USE_REKERNEL:-false}"
         BUILD_CFG[droidspaces]="${DROIDSPACES:-off}"
         BUILD_CFG[kernel_source]="${KERNEL_SOURCE:-}"
+        BUILD_CFG[kernel_source_tarball]="${KERNEL_SOURCE_TARBALL:-}"
         BUILD_CFG[output_dir]="${OUTPUT_DIR:-$PROJECT_ROOT/build/out}"
         BUILD_CFG[package_boot]="${PACKAGE_BOOT:-true}"
-        BUILD_CFG[fetch_manager]="${FETCH_MANAGER:-false}"
         return 0
     fi
     return 1
@@ -93,15 +98,9 @@ load_config() {
 
 # GitHub 镜像源预设列表
 GITHUB_MIRROR_PRESETS=(
-    "https://gh.con.sh/"
-    "https://hub.gitmirror.com/"
-    "https://mirror.ghproxy.com/"
     "https://gh-proxy.com/"
     "https://gh.llkk.cc/"
     "https://gh.ddlc.top/"
-    "https://ghproxy.com/"
-    "https://gh.api.99988866.xyz/"
-    "https://ghproxy.cc/"
 )
 
 config_mirrors() {
@@ -159,6 +158,8 @@ config_mirrors() {
 use_custom_mirror=true
 CUSTOM_GITHUB_MIRROR="${CUSTOM_GITHUB_MIRROR:-}"
 EOF
+    # 立即加载到当前 shell，确保后续步骤（如 fetch_kernel_source）可用
+    source "$MIRRORS_CONF"
     log_info "镜像配置已保存"
 }
 
@@ -175,8 +176,8 @@ _speedtest_single() {
 
     echo -n "  下载测速中 ... "
     local start=$(date +%s%N)
-    local size=$(curl -LSs -o /dev/null --max-time "$timeout" -w "%{size_download}" "$url" 2>/dev/null)
-    local ret=$?
+    local size="" ret=0
+    size=$(curl -LSs -o /dev/null --max-time "$timeout" -w "%{size_download}" "$url" 2>/dev/null) || ret=$?
     local end=$(date +%s%N)
     local elapsed=$(( (end - start) / 1000000 ))
 
@@ -194,21 +195,39 @@ _speedtest_single() {
     echo -e "  速度: ${GREEN}${speed} KB/s${NC}"
 }
 
+# 从 KERNEL_VERSIONS 表查找补丁级别
+_lookup_os_patch_level() {
+    local key="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}"
+    local data="${KERNEL_VERSIONS[$key]:-}"
+    [ -z "$data" ] && return
+    while IFS='|' read -r _ sub patch rev; do
+        [ -z "$sub" ] && continue
+        if [ "$sub" = "${BUILD_CFG[sub_level]}" ]; then
+            [ -n "$patch" ] && BUILD_CFG[os_patch_level]="$patch"
+            [ -n "$rev" ] && BUILD_CFG[revision]="$rev"
+            return 0
+        fi
+    done <<< "$data" || true
+}
+
 # 获取内核源码 (远程脚本)
 fetch_kernel_source() {
     echo ""
     echo -e "${CYAN}${BOLD}═══ 获取内核源码 ═══${NC}"
     echo ""
 
-    local script_url="https://raw.githubusercontent.com/404-GCross/GKI-Kernel-Source_Fetch/refs/heads/main/fetch_kernel_source.sh"
+    local script_url="https://raw.githubusercontent.com/404-GCross/GKI-Kernel-Source_Fetch/refs/heads/main/fetch_kernel_source_no-extract.sh"
     local actual_url=$(mirror_github "$script_url")
 
     log_info "正在获取内核源码拉取脚本..."
     log_info "脚本地址: $actual_url"
 
+    mkdir -p "$PROJECT_ROOT/kernel-sources"
+
     local tmp_out="/tmp/fetch_kernel_output.log"
-    bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out"
-    local ret=${PIPESTATUS[0]}
+    local ret=0
+    bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out" || ret=${PIPESTATUS[0]}
+    ret=${ret:-${PIPESTATUS[0]}}
 
     if [ $ret -ne 0 ]; then
         log_error "内核源码获取失败 (退出码: $ret)"
@@ -227,6 +246,7 @@ fetch_kernel_source() {
             BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
             BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
             BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
+            _lookup_os_patch_level
             log_info "已自动设置内核版本: ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
         fi
     fi
@@ -244,6 +264,27 @@ fetch_kernel_source() {
     else
         log_warn "未能自动检测源码路径，请手动设置"
     fi
+
+    # 扫描 kernel-sources/ 中的压缩包，自动设置
+    shopt -s nullglob
+    local tarballs=("$PROJECT_ROOT/kernel-sources"/*.tar.gz)
+    shopt -u nullglob
+    if [ ${#tarballs[@]} -gt 0 ] && [ -n "${BUILD_CFG[android_version]}" ]; then
+        local version_pattern="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
+        local matched=""
+        for t in "${tarballs[@]}"; do
+            local name=$(basename "$t")
+            if [[ "$name" =~ ^kernel-source-(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)\.tar\.gz$ ]]; then
+                if [ "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}" = "$version_pattern" ]; then
+                    matched="$t"
+                    break
+                fi
+            fi
+        done
+        [ -z "$matched" ] && matched="${tarballs[0]}"
+        BUILD_CFG[kernel_source_tarball]="$matched"
+        log_info "已自动设置内核源码包: $(basename "$matched")"
+    fi
 }
 
 # 内核源码路径选择
@@ -257,6 +298,7 @@ config_kernel_source() {
     read -r -p "$(echo -e "${YELLOW}GKI 源码目录路径 (包含 common/ 子目录):${NC} ")" src
     if [ -d "$src/common" ]; then
         BUILD_CFG[kernel_source]=$(get_abs_path "$src")
+        BUILD_CFG[kernel_source_tarball]=""  # 手动路径，编译时跳过解压
         log_info "已选择 GKI 源码: ${BUILD_CFG[kernel_source]}"
     else
         log_error "目录中未找到 common/ 子目录，不是有效的 GKI 源码目录"
@@ -422,7 +464,7 @@ config_kernel_version() {
         subs+=("$sub")
         patches+=("$patch")
         revs+=("$rev")
-    done <<< "$data"
+    done <<< "$data" || true
 
     local sub_result=$(select_option "" "${labels[@]}")
     local sub_idx="${sub_result%%$'\t'*}"
@@ -440,15 +482,14 @@ config_kernelsu() {
     echo -e "${CYAN}${BOLD}═══ KernelSU 配置 ═══${NC}"
     echo ""
 
-    local variants=("None (纯GKI内核/无root)" "ReSukiSU (推荐)" "SukiSU" "Official (KernelSU官方)")
+    local variants=("None (纯GKI内核/无root)" "ReSukiSU (推荐)" "Official (KernelSU官方)")
     local result=$(select_option "选择 KernelSU 变体:" "${variants[@]}")
     local idx="${result%%$'\t'*}"
 
     case $idx in
         0) BUILD_CFG[ksu_variant]="None" ;;
         1) BUILD_CFG[ksu_variant]="ReSukiSU" ;;
-        2) BUILD_CFG[ksu_variant]="SukiSU" ;;
-        3) BUILD_CFG[ksu_variant]="Official" ;;
+        2) BUILD_CFG[ksu_variant]="Official" ;;
     esac
 
     # None = 纯 GKI，不需要选择分支
@@ -468,15 +509,6 @@ config_kernelsu() {
     esac
 
     log_info "KernelSU: ${BUILD_CFG[ksu_variant]} / ${BUILD_CFG[ksu_branch]}"
-
-    # 询问是否获取 Root 管理器 APK
-    echo ""
-    if confirm "是否获取 Root 管理器 APK (下载 CI 构建产物)?" "n"; then
-        BUILD_CFG[fetch_manager]="true"
-        log_info "将在编译完成后下载管理器"
-    else
-        BUILD_CFG[fetch_manager]="false"
-    fi
 }
 
 # Droidspaces 容器支持配置
@@ -548,7 +580,7 @@ config_optional() {
     echo -e "${CYAN}${BOLD}═══ 可选配置 ═══${NC}"
     echo ""
 
-    read -r -p "$(echo -e "${YELLOW}自定义版本名 (可选, 留空跳过):${NC} ")" ver
+    read -r -p "$(echo -e "${YELLOW}自定义版本名 (可选, 留空跳过; ${RED}不宜过长${NC}${YELLOW}, 过长会导致编译失败):${NC} ")" ver
     BUILD_CFG[custom_version]="$ver"
 
     read -r -p "$(echo -e "${YELLOW}自定义构建时间 (可选, N或留空=当前UTC时间):${NC} ")" btime
@@ -570,7 +602,13 @@ show_config_summary() {
     echo -e "${CYAN}${BOLD}║           构建配置摘要                       ║${NC}"
     echo -e "${CYAN}${BOLD}╚══════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "  ${BOLD}内核源码${NC}      ${GREEN}${BUILD_CFG[kernel_source]:-未设置!}${NC}"
+    if [ -n "${BUILD_CFG[kernel_source]}" ]; then
+        echo -e "  ${BOLD}内核源码${NC}      ${GREEN}${BUILD_CFG[kernel_source]}${NC}"
+    elif [ -n "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
+        echo -e "  ${BOLD}源码包${NC}        ${GREEN}$(basename "${BUILD_CFG[kernel_source_tarball]:-}")${NC} ${YELLOW}(编译时解压)${NC}"
+    else
+        echo -e "  ${BOLD}内核源码${NC}      ${RED}未设置!${NC}"
+    fi
     echo -e "  ${BOLD}Android版本${NC}    ${GREEN}${BUILD_CFG[android_version]:-未设置!}${NC}"
     echo -e "  ${BOLD}内核版本${NC}      ${GREEN}${BUILD_CFG[kernel_version]:-未设置!}${NC}"
     echo -e "  ${BOLD}子版本号${NC}      ${GREEN}${BUILD_CFG[sub_level]:-未设置!}${NC}"
@@ -600,6 +638,87 @@ show_config_summary() {
     echo ""
 }
 
+# 选择脚本获取的内核源码
+config_kernel_from_source_package() {
+    echo ""
+    echo -e "${CYAN}${BOLD}═══ 选择脚本获取的内核源码 ═══${NC}"
+    echo ""
+
+    local src_dir="$PROJECT_ROOT/kernel-sources"
+    if [ ! -d "$src_dir" ]; then
+        log_error "内核源码目录不存在: $src_dir"
+        log_info "请先执行 '获取内核源码' 下载源码包"
+        return 1
+    fi
+
+    shopt -s nullglob
+    local tarballs=("$src_dir"/*.tar.gz)
+    shopt -u nullglob
+
+    if [ ${#tarballs[@]} -eq 0 ]; then
+        log_error "未找到内核源码压缩包 (.tar.gz)"
+        log_info "请先执行 '获取内核源码' 下载源码包"
+        return 1
+    fi
+
+    local labels=()
+    for t in "${tarballs[@]}"; do
+        local name=$(basename "$t")
+        if [[ "$name" =~ ^kernel-source-(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)\.tar\.gz$ ]]; then
+            labels+=("${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}")
+        else
+            labels+=("$name")
+        fi
+    done
+
+    local result=$(select_option "选择内核源码:" "${labels[@]}")
+    local idx="${result%%$'\t'*}"
+    local chosen="${tarballs[$idx]}"
+    local name=$(basename "$chosen")
+
+    # 解析版本号
+    if [[ "$name" =~ ^kernel-source-(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)\.tar\.gz$ ]]; then
+        BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
+        BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
+        BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
+        BUILD_CFG[kernel_source_tarball]="$chosen"
+        _lookup_os_patch_level
+        log_info "已识别内核版本: ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
+        log_info "源码包: $chosen (将在编译时解压)"
+    else
+        log_warn "无法从文件名识别内核版本: $name"
+        log_info "参考格式: kernel-source-android16-6.12-23.tar.gz"
+    fi
+}
+
+# ================================================================
+# 解压内核源码压缩包
+# ================================================================
+extract_kernel_source_tarball() {
+    local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
+    [ -z "$tarball" ] && return 0
+
+    if [ -z "${BUILD_CFG[kernel_source]}" ] || [ ! -d "${BUILD_CFG[kernel_source]}" ]; then
+        if [ -f "$tarball" ]; then
+            log_step "解压内核源码包"
+            local extracted_dir="$PROJECT_ROOT/$(basename "${tarball%.tar.gz}")"
+            if [ -d "$extracted_dir" ]; then
+                log_info "已存在 $extracted_dir，跳过解压"
+            else
+                mkdir -p "$extracted_dir"
+                tar -xzf "$tarball" -C "$extracted_dir" --strip-components=1
+            fi
+            if [ -d "$extracted_dir/common" ]; then
+                BUILD_CFG[kernel_source]="$extracted_dir"
+                log_info "内核源码路径: $extracted_dir"
+            fi
+        else
+            log_error "源码包不存在: $tarball"
+            return 1
+        fi
+    fi
+}
+
 # ================================================================
 # 主菜单
 # ================================================================
@@ -618,33 +737,45 @@ main_menu() {
     while true; do
         echo ""
         echo -e "${CYAN}${BOLD}═══ 主菜单 ═══${NC}"
+        echo -e "  ${RED}米系6.12设备暂不可用${NC}"
+        echo ""
         echo -e "  ${YELLOW}建议按顺序配置一遍${NC}"
         echo ""
         echo -ne "  1) 镜像源配置"
         echo -e " ${GREEN}→ ${CUSTOM_GITHUB_MIRROR:-直连}${NC}"
         echo "  2) 安装编译依赖"
         echo "  3) 获取内核源码"
-        echo -ne "  4) 选择内核源码路径"
-        [ -n "${BUILD_CFG[kernel_source]}" ] && echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}" || echo ""
-        echo -ne "  5) 选择内核版本"
+        echo -ne "  4) 选择脚本获取的内核源码"
+        if [ -n "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
+            echo -e " ${GREEN}→ $(basename "${BUILD_CFG[kernel_source_tarball]:-}")${NC}"
+        else
+            echo ""
+        fi
+        echo -ne "  5) 选择内核源码路径"
+        if [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ] && [ -n "${BUILD_CFG[kernel_source]}" ]; then
+            echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}"
+        else
+            echo ""
+        fi
+        echo -ne "  6) 选择内核版本"
         if [ -n "${BUILD_CFG[android_version]}" ] && [ -n "${BUILD_CFG[kernel_version]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  6) 配置 KernelSU"
+        echo -ne "  7) 配置 KernelSU"
         if [ -n "${BUILD_CFG[ksu_variant]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[ksu_variant]} (${BUILD_CFG[ksu_branch]})${NC}"
         else
             echo ""
         fi
-        echo -ne "  7) Droidspaces 容器支持"
+        echo -ne "  8) Droidspaces 容器支持"
         if [ -n "${BUILD_CFG[droidspaces]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[droidspaces]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  8) 其他功能配置 (ZRAM, Re-Kernel, KPM)"
+        echo -ne "  9) 其他功能配置 (实验性内容，不推荐使用)"
         local enabled_features=()
         [ "${BUILD_CFG[use_zram]}" = "true" ] && enabled_features+=("ZRAM")
         [ "${BUILD_CFG[use_rekernel]}" = "true" ] && enabled_features+=("Re-Kernel")
@@ -680,25 +811,30 @@ main_menu() {
                 setup_ccache
                 ;;
             3) fetch_kernel_source ;;
-            4) config_kernel_source ;;
-            5) config_kernel_version ;;
-            6) config_kernelsu ;;
-            7) config_droidspaces ;;
-            8) config_features ;;
+            4) config_kernel_from_source_package ;;
+            5) config_kernel_source ;;
+            6) config_kernel_version ;;
+            7) config_kernelsu ;;
+            8) config_droidspaces ;;
+            9) config_features ;;
             0) config_optional ;;
             s)
                 # 验证必要配置
-                if [ -z "${BUILD_CFG[kernel_source]}" ] || [ -z "${BUILD_CFG[android_version]}" ] || [ -z "${BUILD_CFG[kernel_version]}" ]; then
+                if ([ -z "${BUILD_CFG[kernel_source]}" ] && [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ]) || [ -z "${BUILD_CFG[android_version]}" ] || [ -z "${BUILD_CFG[kernel_version]}" ]; then
                     log_error "请先配置内核源码路径和内核版本!"
                     continue
                 fi
+
+                extract_kernel_source_tarball
 
                 show_config_summary
 
                 if confirm "确认配置无误，开始编译?" "y"; then
                     save_config
                     run_build
-                    return $?
+                    local build_ret=$?
+                    _cleanup_extracted_source
+                    return $build_ret
                 else
                     log_info "返回主菜单"
                 fi
@@ -719,6 +855,18 @@ main_menu() {
     done
 }
 
+# 编译完成后清理解压的源码目录
+_cleanup_extracted_source() {
+    local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
+    local extracted="${BUILD_CFG[kernel_source]}"
+    # 仅清理解压产生的子目录，防止误删项目根目录
+    if [ -n "$tarball" ] && [ -n "$extracted" ] && [ -d "$extracted" ] && [ "$extracted" != "$PROJECT_ROOT" ]; then
+        log_info "清理解压的源码目录: $extracted"
+        rm -rf "$extracted"
+        BUILD_CFG[kernel_source]=""
+    fi
+}
+
 # ================================================================
 # 入口
 # ================================================================
@@ -733,7 +881,9 @@ case "${1:-}" in
         if load_config; then
             log_info "使用保存的配置快速构建..."
             show_config_summary
+            extract_kernel_source_tarball || exit 1
             run_build
+            _cleanup_extracted_source
         else
             log_error "未找到保存的配置，请先运行 ./build_kernel.sh 进行配置"
             exit 1

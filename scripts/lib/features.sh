@@ -9,7 +9,7 @@
 # 应用 KernelSU
 apply_kernelsu() {
     local kernel_root="$1"
-    local ksu_variant="$2"       # Official / SukiSU / ReSukiSU / Next / None
+    local ksu_variant="$2"       # Official / ReSukiSU / None
     local ksu_branch="$3"        # Stable(标准) / Dev(开发)
 
     [ "$ksu_variant" = "None" ] && return 0
@@ -26,7 +26,6 @@ apply_kernelsu() {
             case "$ksu_branch" in
                 "Stable(标准)")
                     case "$ksu_variant" in
-                        SukiSU)   branch_flag="-s builtin" ;;
                         Official) branch_flag="-s main" ;;
                         *)        branch_flag="-" ;;
                     esac
@@ -34,7 +33,6 @@ apply_kernelsu() {
                 "Dev(开发)")
                     case "$ksu_variant" in
                         Official) branch_flag="-s main" ;;
-                        SukiSU)   branch_flag="-s builtin" ;;
                     esac
                     ;;
             esac
@@ -43,18 +41,32 @@ apply_kernelsu() {
 
     cd "$kernel_root"
 
+    # 设置 Git 镜像，确保 KernelSU setup.sh 内部的 git clone 也走镜像
+    load_mirror_config
+    local git_cfg=""
+    if [ "${use_custom_mirror:-false}" = "true" ] && [ -n "${CUSTOM_GITHUB_MIRROR:-}" ]; then
+        git_cfg="$PROJECT_ROOT/config/.gitconfig_mirror"
+        cat > "$git_cfg" << EOF
+[url "${CUSTOM_GITHUB_MIRROR}https://github.com/"]
+    insteadOf = https://github.com/
+EOF
+        export GIT_CONFIG_GLOBAL="$git_cfg"
+    fi
+
     case "$ksu_variant" in
         Official)
             log_info "集成 KernelSU 官方版..."
-            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh")" | bash $branch_flag
-            ;;
-        SukiSU)
-            log_info "集成 SukiSU..."
-            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh")" | bash $branch_flag
+            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh")" | bash $branch_flag || {
+                log_error "KernelSU 官方版 setup.sh 执行失败"
+                return 1
+            }
             ;;
         ReSukiSU)
             log_info "集成 ReSukiSU..."
-            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh")" | bash $branch_flag
+            curl -LSs "$(mirror_github "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh")" | bash $branch_flag || {
+                log_error "ReSukiSU setup.sh 执行失败"
+                return 1
+            }
             ;;
         *)
             log_error "未知 KernelSU 变体: $ksu_variant"
@@ -62,13 +74,27 @@ apply_kernelsu() {
             ;;
     esac
 
+    # 清理 Git 镜像配置
+    [ -n "$git_cfg" ] && rm -f "$git_cfg"
+    unset GIT_CONFIG_GLOBAL
+
+    # 修复 KernelSU setup.sh 可能产生的递归符号链接
+    for dir in "." "common/drivers/kernelsu"; do
+        [ -d "$dir" ] && find "$dir" -maxdepth 3 -type l -name kernel -exec sh -c '
+            t=$(readlink -f "$1" 2>/dev/null) || { rm -f "$1"; exit 0; }
+            # 检测自引用: 如果目标路径包含自身则删除
+            case "$t" in
+                *"$1"*) rm -f "$1" ;;
+            esac
+        ' _ {} \; 2>/dev/null || true
+    done
+
     # 计算并保存 KSU 版本号 (所有变体)
     if [ -d "KernelSU/.git" ]; then
         local ksu_git_ver=$(git -C KernelSU rev-list --count HEAD)
         local ksu_ver
         case "$ksu_variant" in
             Official) ksu_ver=$((20000 + ksu_git_ver)) ;;
-            SukiSU)   ksu_ver=$((40000 + ksu_git_ver - 2815)) ;;
             ReSukiSU) ksu_ver=$((30700 + ksu_git_ver)) ;;
         esac
         echo "$ksu_ver" > "KernelSU/.ksu_version"
@@ -119,10 +145,10 @@ apply_zram() {
         cp -r "$sukisu_patches/other/zram/lz4k_oplus" ./lib/ 2>/dev/null || true
 
         if [ -f "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4kd.patch" ]; then
-            patch -p1 -F 3 < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4kd.patch" || true
+            patch -p1 -F 3 -N < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4kd.patch" || true
         fi
         if [ -f "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4k_oplus.patch" ]; then
-            patch -p1 -F 3 < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4k_oplus.patch" || true
+            patch -p1 -F 3 -N < "$sukisu_patches/other/zram/zram_patch/${kernel_ver}/lz4k_oplus.patch" || true
         fi
     fi
 
@@ -139,7 +165,10 @@ apply_rekernel() {
 
     local tmp_rekernel="/tmp/rekernel"
     rm -rf "$tmp_rekernel"
-    git_clone "https://github.com/Sakion-Team/Re-Kernel.git" "$tmp_rekernel" --depth 1
+    git_clone "https://github.com/Sakion-Team/Re-Kernel.git" "$tmp_rekernel" --depth 1 || {
+        log_error "Re-Kernel 仓库克隆失败"
+        return 1
+    }
 
     local common_dir="$kernel_root/common"
     local drv_dir="$common_dir/drivers/rekernel"
