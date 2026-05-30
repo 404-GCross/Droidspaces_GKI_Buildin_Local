@@ -747,7 +747,11 @@ main_menu() {
             echo ""
         fi
         echo -ne "  5) 选择内核源码路径"
-        [ -n "${BUILD_CFG[kernel_source]}" ] && echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}" || echo ""
+        if [ -z "${BUILD_CFG[kernel_source_tarball]}" ] && [ -n "${BUILD_CFG[kernel_source]}" ]; then
+            echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}"
+        else
+            echo ""
+        fi
         echo -ne "  6) 选择内核版本"
         if [ -n "${BUILD_CFG[android_version]}" ] && [ -n "${BUILD_CFG[kernel_version]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}${NC}"
