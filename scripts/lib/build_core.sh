@@ -48,6 +48,9 @@ run_build() {
     mkdir -p "$build_dir"
     log_info "构建目录: $build_dir"
 
+    # 清理旧编译产物
+    rm -f "$build_dir"/*.zip "$build_dir"/Image "$build_dir"/Image.* 2>/dev/null || true
+
     # ==================== 准备内核源码 ====================
     if [ -n "$kernel_source" ] && [ -d "$kernel_source" ]; then
         log_info "使用本地内核源码: $kernel_source"
@@ -437,7 +440,8 @@ EOF
                 echo -e "  ${YELLOW}提示: 请手动下载 ${ksu_variant} 管理器 APK${NC}"
                 [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}KSU 版本: ${ksu_ver}${NC}"
                 [ -n "$manager_url" ] && echo -e "  ${YELLOW}Actions 页面: ${manager_url}${NC}"
-                echo -e "  ${YELLOW}(需登录 GitHub，找到对应编号的 run → Artifacts 下载 manager zip)${NC}"
+                echo -e "  ${YELLOW}(需登录 GitHub，找到 name 含版本号的 run → Artifacts 下载 manager zip)${NC}"
+                echo -e "  ${YELLOW}注：选择 main 分支最新的即可${NC}"
                 echo ""
             fi
         else

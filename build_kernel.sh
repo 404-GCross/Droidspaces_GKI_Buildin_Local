@@ -222,7 +222,8 @@ fetch_kernel_source() {
     log_info "正在获取内核源码拉取脚本..."
     log_info "脚本地址: $actual_url"
 
-    mkdir -p "$PROJECT_ROOT/kernel-sources"
+    mkdir -p "$HOME/kernel-sources"
+    cd "$HOME"
 
     local tmp_out="/tmp/fetch_kernel_output.log"
     local ret=0
@@ -267,7 +268,7 @@ fetch_kernel_source() {
 
     # 扫描 kernel-sources/ 中的压缩包，自动设置
     shopt -s nullglob
-    local tarballs=("$PROJECT_ROOT/kernel-sources"/*.tar.gz)
+    local tarballs=("$HOME/kernel-sources"/*.tar.gz)
     shopt -u nullglob
     if [ ${#tarballs[@]} -gt 0 ] && [ -n "${BUILD_CFG[android_version]}" ]; then
         local version_pattern="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
@@ -644,7 +645,7 @@ config_kernel_from_source_package() {
     echo -e "${CYAN}${BOLD}═══ 选择脚本获取的内核源码 ═══${NC}"
     echo ""
 
-    local src_dir="$PROJECT_ROOT/kernel-sources"
+    local src_dir="$HOME/kernel-sources"
     if [ ! -d "$src_dir" ]; then
         log_error "内核源码目录不存在: $src_dir"
         log_info "请先执行 '获取内核源码' 下载源码包"
@@ -701,12 +702,14 @@ extract_kernel_source_tarball() {
     if [ -z "${BUILD_CFG[kernel_source]}" ] || [ ! -d "${BUILD_CFG[kernel_source]}" ]; then
         if [ -f "$tarball" ]; then
             log_step "解压内核源码包"
-            local extracted_dir="$PROJECT_ROOT/$(basename "${tarball%.tar.gz}")"
+            local extracted_dir="$HOME/kernel-sources/$(basename "${tarball%.tar.gz}")"
             if [ -d "$extracted_dir" ]; then
                 log_info "已存在 $extracted_dir，跳过解压"
             else
                 mkdir -p "$extracted_dir"
                 tar -xzf "$tarball" -C "$extracted_dir" --strip-components=1
+                # 删除压缩包自带的 Bazel 缓存（含其他机器的硬编码路径）
+                rm -rf "$extracted_dir/out" 2>/dev/null || true
             fi
             if [ -d "$extracted_dir/common" ]; then
                 BUILD_CFG[kernel_source]="$extracted_dir"
@@ -831,8 +834,8 @@ main_menu() {
 
                 if confirm "确认配置无误，开始编译?" "y"; then
                     save_config
-                    run_build
-                    local build_ret=$?
+                    local build_ret=0
+                    run_build || build_ret=$?
                     _cleanup_extracted_source
                     return $build_ret
                 else
@@ -882,7 +885,7 @@ case "${1:-}" in
             log_info "使用保存的配置快速构建..."
             show_config_summary
             extract_kernel_source_tarball || exit 1
-            run_build
+            run_build || true
             _cleanup_extracted_source
         else
             log_error "未找到保存的配置，请先运行 ./build_kernel.sh 进行配置"
