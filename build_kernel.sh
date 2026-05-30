@@ -599,8 +599,8 @@ show_config_summary() {
     echo ""
     if [ -n "${BUILD_CFG[kernel_source]}" ]; then
         echo -e "  ${BOLD}内核源码${NC}      ${GREEN}${BUILD_CFG[kernel_source]}${NC}"
-    elif [ -n "${BUILD_CFG[kernel_source_tarball]}" ]; then
-        echo -e "  ${BOLD}源码包${NC}        ${GREEN}$(basename "${BUILD_CFG[kernel_source_tarball]}")${NC} ${YELLOW}(编译时解压)${NC}"
+    elif [ -n "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
+        echo -e "  ${BOLD}源码包${NC}        ${GREEN}$(basename "${BUILD_CFG[kernel_source_tarball]:-}")${NC} ${YELLOW}(编译时解压)${NC}"
     else
         echo -e "  ${BOLD}内核源码${NC}      ${RED}未设置!${NC}"
     fi
@@ -741,13 +741,13 @@ main_menu() {
         echo "  2) 安装编译依赖"
         echo "  3) 获取内核源码"
         echo -ne "  4) 选择脚本获取的内核源码"
-        if [ -n "${BUILD_CFG[kernel_source_tarball]}" ]; then
-            echo -e " ${GREEN}→ $(basename "${BUILD_CFG[kernel_source_tarball]}")${NC}"
+        if [ -n "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
+            echo -e " ${GREEN}→ $(basename "${BUILD_CFG[kernel_source_tarball]:-}")${NC}"
         else
             echo ""
         fi
         echo -ne "  5) 选择内核源码路径"
-        if [ -z "${BUILD_CFG[kernel_source_tarball]}" ] && [ -n "${BUILD_CFG[kernel_source]}" ]; then
+        if [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ] && [ -n "${BUILD_CFG[kernel_source]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}"
         else
             echo ""
@@ -815,7 +815,7 @@ main_menu() {
             0) config_optional ;;
             s)
                 # 验证必要配置
-                if ([ -z "${BUILD_CFG[kernel_source]}" ] && [ -z "${BUILD_CFG[kernel_source_tarball]}" ]) || [ -z "${BUILD_CFG[android_version]}" ] || [ -z "${BUILD_CFG[kernel_version]}" ]; then
+                if ([ -z "${BUILD_CFG[kernel_source]}" ] && [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ]) || [ -z "${BUILD_CFG[android_version]}" ] || [ -z "${BUILD_CFG[kernel_version]}" ]; then
                     log_error "请先配置内核源码路径和内核版本!"
                     continue
                 fi
