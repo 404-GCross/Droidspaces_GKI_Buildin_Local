@@ -48,6 +48,9 @@ run_build() {
     mkdir -p "$build_dir"
     log_info "构建目录: $build_dir"
 
+    # 清理旧编译产物
+    rm -f "$build_dir"/*.zip "$build_dir"/Image "$build_dir"/Image.* 2>/dev/null || true
+
     # ==================== 准备内核源码 ====================
     if [ -n "$kernel_source" ] && [ -d "$kernel_source" ]; then
         log_info "使用本地内核源码: $kernel_source"
