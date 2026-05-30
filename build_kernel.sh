@@ -701,7 +701,7 @@ extract_kernel_source_tarball() {
     if [ -z "${BUILD_CFG[kernel_source]}" ] || [ ! -d "${BUILD_CFG[kernel_source]}" ]; then
         if [ -f "$tarball" ]; then
             log_step "解压内核源码包"
-            local extracted_dir="$PROJECT_ROOT/$(basename "${tarball%.tar.gz}")"
+            local extracted_dir="/home/GCross/kernel-sources/$(basename "${tarball%.tar.gz}")"
             if [ -d "$extracted_dir" ]; then
                 log_info "已存在 $extracted_dir，跳过解压"
             else
