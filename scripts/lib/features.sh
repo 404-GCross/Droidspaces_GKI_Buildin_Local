@@ -284,6 +284,7 @@ apply_droidspaces() {
     enable_config CONFIG_POSIX_MQUEUE
     enable_config CONFIG_IPC_NS
     enable_config CONFIG_PID_NS
+    enable_config CONFIG_USER_NS
     enable_config CONFIG_DEVTMPFS
 
     for cfg in CONFIG_NETFILTER_XT_MATCH_ADDRTYPE CONFIG_NETFILTER_XT_TARGET_LOG \
