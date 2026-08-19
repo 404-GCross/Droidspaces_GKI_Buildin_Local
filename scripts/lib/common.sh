@@ -17,6 +17,61 @@ NC=$'\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MIRRORS_CONF="$PROJECT_ROOT/config/mirrors.conf"
+APP_LANG="${APP_LANG:-zh}"
+
+# --- 语言选择 / i18n ---
+txt() {
+    local zh="$1"
+    local en="${2:-$1}"
+    if [ "${APP_LANG:-zh}" = "en" ]; then
+        printf '%s' "$en"
+    else
+        printf '%s' "$zh"
+    fi
+}
+
+status_bool() {
+    local value="${1:-false}"
+    if [ "$value" = "true" ]; then
+        txt "开启" "Enabled"
+    else
+        txt "关闭" "Disabled"
+    fi
+}
+
+display_kpm() {
+    local value="${1:-disabled}"
+    case "$value" in
+        enabled*) txt "开启" "Enabled" ;;
+        patched*) txt "$value" "$value" ;;
+        *) txt "关闭" "Disabled" ;;
+    esac
+}
+
+display_ksu_branch() {
+    local value="${1:-Stable(标准)}"
+    case "$value" in
+        "Stable(标准)"|"Stable(stable)"|"Stable") txt "Stable(标准)" "Stable" ;;
+        "Dev(开发)"|"Dev(development)"|"Dev") txt "Dev(开发)" "Dev" ;;
+        *) printf '%s' "$value" ;;
+    esac
+}
+
+choose_language() {
+    local choice=""
+    echo ""
+    echo -e "${CYAN}${BOLD}请选择语言 / Select language${NC}"
+    echo "  1) 简体中文"
+    echo "  2) English"
+    while true; do
+        read -r -p "$(echo -e "${YELLOW}请输入 / Enter [1/2]:${NC} ")" choice
+        case "$choice" in
+            1|"") APP_LANG="zh"; export APP_LANG; break ;;
+            2) APP_LANG="en"; export APP_LANG; break ;;
+            *) echo -e "${RED}无效选择 / Invalid choice: $choice${NC}" ;;
+        esac
+    done
+}
 
 # --- 日志函数 (输出到 stderr，避免被 $() 捕获) ---
 log_info()  { echo -e "${GREEN}[INFO]${NC}  $(date '+%H:%M:%S') $*" >&2; }
@@ -27,7 +82,11 @@ log_step()  { echo -e "\n${CYAN}${BOLD}>>>${NC} ${BOLD}$*${NC}" >&2; }
 show_banner() {
     echo -e "${CYAN}${BOLD}"
     echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║    Droidspaces内核本地编译脚本                           ║"
+    if [ "${APP_LANG:-zh}" = "en" ]; then
+        echo "║    Droidspaces Local GKI Kernel Builder                  ║"
+    else
+        echo "║    Droidspaces内核本地编译脚本                           ║"
+    fi
     echo "╚══════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -66,7 +125,7 @@ git_clone() {
     fi
 
     if [ "$actual_url" != "$repo_url" ]; then
-        log_info "使用镜像源克隆: $actual_url (原始: $repo_url)"
+        log_info "$(txt "使用镜像源克隆" "Cloning through mirror"): $actual_url ($(txt "原始" "original"): $repo_url)"
     fi
 
     git clone "$actual_url" "$target_dir" "${extra_args[@]}"
@@ -108,12 +167,12 @@ select_option() {
 
     local choice
     while true; do
-        read -r -p "$(echo -e "${YELLOW}请选择 [1-${#options[@]}]:${NC} ")" choice
+        read -r -p "$(echo -e "${YELLOW}$(txt "请选择" "Select") [1-${#options[@]}]:${NC} ")" choice
         if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
             printf '%d\t%s\n' "$((choice-1))" "${options[$((choice-1))]}"
             return 0
         fi
-        log_error "无效选择: $choice"
+        log_error "$(txt "无效选择" "Invalid choice"): $choice"
     done
 }
 

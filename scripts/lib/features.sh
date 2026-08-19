@@ -14,7 +14,7 @@ apply_kernelsu() {
 
     [ "$ksu_variant" = "None" ] && return 0
 
-    log_step "集成 KernelSU ($ksu_variant)"
+    log_step "$(txt "集成 KernelSU" "Integrate KernelSU") ($ksu_variant)"
 
     # 确定分支参数
     local branch_flag=""
@@ -24,13 +24,13 @@ apply_kernelsu() {
             ;;
         *)
             case "$ksu_branch" in
-                "Stable(标准)")
+                "Stable(标准)"|"Stable(stable)"|"Stable")
                     case "$ksu_variant" in
                         Official) branch_flag="-s main" ;;
                         *)        branch_flag="-" ;;
                     esac
                     ;;
-                "Dev(开发)")
+                "Dev(开发)"|"Dev(development)"|"Dev")
                     case "$ksu_variant" in
                         Official) branch_flag="-s main" ;;
                     esac
@@ -55,21 +55,21 @@ EOF
 
     case "$ksu_variant" in
         Official)
-            log_info "集成 KernelSU 官方版..."
+            log_info "$(txt "集成 KernelSU 官方版..." "Integrating official KernelSU...")"
             curl -LSs "$(mirror_github "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh")" | bash $branch_flag || {
-                log_error "KernelSU 官方版 setup.sh 执行失败"
+                log_error "$(txt "KernelSU 官方版 setup.sh 执行失败" "Official KernelSU setup.sh failed")"
                 return 1
             }
             ;;
         ReSukiSU)
-            log_info "集成 ReSukiSU..."
+            log_info "$(txt "集成 ReSukiSU..." "Integrating ReSukiSU...")"
             curl -LSs "$(mirror_github "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh")" | bash $branch_flag || {
-                log_error "ReSukiSU setup.sh 执行失败"
+                log_error "$(txt "ReSukiSU setup.sh 执行失败" "ReSukiSU setup.sh failed")"
                 return 1
             }
             ;;
         *)
-            log_error "未知 KernelSU 变体: $ksu_variant"
+            log_error "$(txt "未知 KernelSU 变体" "Unknown KernelSU variant"): $ksu_variant"
             return 1
             ;;
     esac
@@ -98,7 +98,7 @@ EOF
             ReSukiSU) ksu_ver=$((30700 + ksu_git_ver)) ;;
         esac
         echo "$ksu_ver" > "KernelSU/.ksu_version"
-        log_info "KernelSU 版本: $ksu_ver"
+        log_info "$(txt "KernelSU 版本" "KernelSU version"): $ksu_ver"
         echo "KSU_VERSION=$ksu_ver"
 
         # Official 需要更新 Kbuild 中的版本号
@@ -109,10 +109,10 @@ EOF
 
     if [ -d "KernelSU/.git" ]; then
         local ksu_date=$(git -C KernelSU log -1 --date=format:'%Y-%m-%d %H:%M:%S %z' --format='%cd')
-        log_info "KernelSU 最新提交日期: $ksu_date"
+        log_info "$(txt "KernelSU 最新提交日期" "KernelSU latest commit date"): $ksu_date"
     fi
 
-    log_info "KernelSU 集成完成"
+    log_info "$(txt "KernelSU 集成完成" "KernelSU integration completed")"
 }
 
 # 应用 ZRAM LZ4 增强
@@ -122,12 +122,12 @@ apply_zram() {
     local sukisu_patches="$3"
     local zzh_patches="$PROJECT_ROOT"
 
-    log_step "集成 ZRAM LZ4 增强算法"
+    log_step "$(txt "集成 ZRAM LZ4 增强算法" "Integrate ZRAM LZ4 enhancement")"
 
     local common_dir="$kernel_root/common"
     cd "$common_dir"
 
-    log_info "升级 LZ4 模块..."
+    log_info "$(txt "升级 LZ4 模块..." "Updating LZ4 module...")"
     rm -f lib/lz4/lz4_compress.c lib/lz4/lz4_decompress.c lib/lz4/lz4defs.h lib/lz4/lz4hc_compress.c
 
     cp -r "$zzh_patches/zram/lz4/"* ./lib/lz4/ 2>/dev/null || true
@@ -152,7 +152,7 @@ apply_zram() {
         fi
     fi
 
-    log_info "ZRAM 增强集成完成"
+    log_info "$(txt "ZRAM 增强集成完成" "ZRAM enhancement integration completed")"
 }
 
 
@@ -161,12 +161,12 @@ apply_rekernel() {
     local kernel_root="$1"
     local kernel_ver="$2"
 
-    log_step "集成 Re-Kernel 驱动"
+    log_step "$(txt "集成 Re-Kernel 驱动" "Integrate Re-Kernel driver")"
 
     local tmp_rekernel="/tmp/rekernel"
     rm -rf "$tmp_rekernel"
     git_clone "https://github.com/Sakion-Team/Re-Kernel.git" "$tmp_rekernel" --depth 1 || {
-        log_error "Re-Kernel 仓库克隆失败"
+        log_error "$(txt "Re-Kernel 仓库克隆失败" "Failed to clone Re-Kernel repository")"
         return 1
     }
 
@@ -220,7 +220,37 @@ MAKEFILE_EOF
     grep -q '^CONFIG_REKERNEL_NETWORK=y$' "$defconfig" || echo "CONFIG_REKERNEL_NETWORK=y" >> "$defconfig"
 
     rm -rf "$tmp_rekernel"
-    log_info "Re-Kernel 集成完成"
+    log_info "$(txt "Re-Kernel 集成完成" "Re-Kernel integration completed")"
+}
+
+# 应用 CVE-2026-43499 / CVE-2026-53163 rtmutex 修复链
+apply_cve_2026_43499() {
+    local kernel_root="$1"
+    local kernel_ver="$2"
+    local actual_sub="$3"
+
+    log_step "$(txt "应用 CVE-2026-43499 rtmutex 修复链" "Apply CVE-2026-43499 rtmutex fix chain")"
+
+    local patch_dir="$PROJECT_ROOT/security_patch"
+    local script="$patch_dir/apply_cve_2026_43499.sh"
+    local common_dir="$kernel_root/common"
+    [ -d "$common_dir" ] || common_dir="$kernel_root"
+
+    if [ ! -f "$script" ]; then
+        log_error "$(txt "未找到 CVE 修复脚本" "CVE fix script not found"): $script"
+        return 1
+    fi
+    if [ ! -f "$common_dir/kernel/locking/rtmutex.c" ]; then
+        log_error "$(txt "未找到 rtmutex.c" "rtmutex.c not found"): $common_dir/kernel/locking/rtmutex.c"
+        return 1
+    fi
+
+    (cd "$common_dir" && bash "$script" "$kernel_ver" "$actual_sub" "$patch_dir") || {
+        log_error "$(txt "CVE-2026-43499 rtmutex 修复链应用失败" "Failed to apply CVE-2026-43499 rtmutex fix chain")"
+        return 1
+    }
+
+    log_info "$(txt "CVE-2026-43499 rtmutex 修复链处理完成" "CVE-2026-43499 rtmutex fix chain completed")"
 }
 
 # 应用 Droidspaces 容器支持
@@ -233,11 +263,11 @@ apply_droidspaces() {
 
     [ "$slot" = "off" ] && return 0
 
-    log_step "集成 Droidspaces 容器支持 (槽位: $slot)"
+    log_step "$(txt "集成 Droidspaces 容器支持" "Integrate Droidspaces container support") ($(txt "槽位" "slot"): $slot)"
 
     local tmp_ds="/tmp/Droidspaces-OSS"
     git_clone "https://github.com/ravindu644/Droidspaces-OSS.git" "$tmp_ds" --depth 1 || {
-        log_error "克隆 Droidspaces 仓库失败，终止编译"
+        log_error "$(txt "克隆 Droidspaces 仓库失败，终止编译" "Failed to clone Droidspaces repository; aborting build")"
         return 1
     }
 
@@ -296,7 +326,7 @@ apply_droidspaces() {
     done
 
     rm -rf "$tmp_ds"
-    log_info "Droidspaces 集成完成"
+    log_info "$(txt "Droidspaces 集成完成" "Droidspaces integration completed")"
 }
 
 # 添加NTsync
@@ -307,12 +337,12 @@ apply_ntsync() {
     local kernel_ver="$3"
     local defconfig="$4"
 
-    log_step "集成NTsync支持"
+    log_step "$(txt "集成NTsync支持" "Integrate NTsync support")"
 
     # 克隆NTsync补丁仓库
     local tmp_ntsync="/tmp/ntsync"
     git_clone "https://github.com/404-GCross/Droidspaces_Kernel_patch.git" "$tmp_ntsync" --depth 1 || {
-        log_warn "克隆 Droidspaces_Kernel_patch 仓库失败，跳过"
+        log_warn "$(txt "克隆 Droidspaces_Kernel_patch 仓库失败，跳过" "Failed to clone Droidspaces_Kernel_patch repository; skipping")"
         return 0
     }
 
@@ -342,5 +372,5 @@ apply_ntsync() {
     fi
 
     rm -rf "$tmp_ntsync"
-    log_info "NTsync 集成完成"
+    log_info "$(txt "NTsync 集成完成" "NTsync integration completed")"
 }

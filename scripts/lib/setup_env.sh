@@ -4,7 +4,7 @@
 # ================================================================
 
 setup_dependencies() {
-    log_step "检查编译依赖"
+    log_step "$(txt "检查编译依赖" "Check build dependencies")"
 
     # --- 检测发行版 ---
     local distro=""
@@ -94,9 +94,9 @@ setup_dependencies() {
     fi
 
     if [ -z "$distro" ]; then
-        log_warn "未知发行版，请手动安装以下依赖:"
+        log_warn "$(txt "未知发行版，请手动安装以下依赖:" "Unknown distribution; please install these dependencies manually:")"
         log_warn "  git curl make gcc g++ openssl-dev bison flex libelf-dev dwarves ccache python3 clang lld bc rsync cpio perl patch zip"
-        if confirm "是否继续?" "y"; then
+        if confirm "$(txt "是否继续?" "Continue?")" "y"; then
             return 0
         else
             exit 1
@@ -104,7 +104,7 @@ setup_dependencies() {
     fi
 
     # --- 安装 ---
-    log_info "检测到发行版: ${distro} ($install_cmd)"
+    log_info "$(txt "检测到发行版" "Detected distribution"): ${distro} ($install_cmd)"
 
     # 先检查哪些包尚未安装
     local missing=()
@@ -129,31 +129,30 @@ setup_dependencies() {
     done
 
     if [ ${#missing[@]} -eq 0 ]; then
-        log_info "所有依赖已安装 (${#pkgs[@]} 项)"
+        log_info "$(txt "所有依赖已安装" "All dependencies are installed") (${#pkgs[@]} $(txt "项" "items"))"
         return 0
     fi
 
-    log_info "需安装 ${#missing[@]}/${#pkgs[@]} 个包: ${missing[*]}"
+    log_info "$(txt "需安装" "Need to install") ${#missing[@]}/${#pkgs[@]} $(txt "个包" "package(s)"): ${missing[*]}"
 
-    if ! confirm "确认安装?" "y"; then
-        log_info "跳过依赖安装"
+    if ! confirm "$(txt "确认安装?" "Install now?")" "y"; then
+        log_info "$(txt "跳过依赖安装" "Skipping dependency installation")"
         return 0
     fi
 
     [ -n "$update_cmd" ] && $update_cmd
     $install_cmd "${missing[@]}"
 
-    log_info "依赖安装完成"
+    log_info "$(txt "依赖安装完成" "Dependency installation completed")"
 }
 
 setup_ccache() {
-    log_step "配置 ccache"
+    log_step "$(txt "配置 ccache" "Configure ccache")"
     mkdir -p ~/.cache/bazel
     ccache --version 2>/dev/null || true
     ccache --max-size=2G 2>/dev/null || true
     ccache --set-config=compression=true 2>/dev/null || true
     export CCACHE_DIR="$HOME/.ccache"
-    log_info "ccache 缓存目录: $CCACHE_DIR"
+    log_info "$(txt "ccache 缓存目录" "ccache cache directory"): $CCACHE_DIR"
 }
-
 

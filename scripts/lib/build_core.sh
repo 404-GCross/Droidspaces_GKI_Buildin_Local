@@ -16,14 +16,15 @@ BUILD_CFG[ksu_branch]="Stable(标准)"
 BUILD_CFG[custom_version]=""
 BUILD_CFG[build_time]=""
 BUILD_CFG[use_zram]="false"
-BUILD_CFG[use_kpm]="disabled (关闭)"
+BUILD_CFG[use_kpm]="disabled"
 BUILD_CFG[use_rekernel]="false"
+BUILD_CFG[cve_2026_43499_patch]="false"
 BUILD_CFG[droidspaces]="off"
 BUILD_CFG[kernel_source]=""
 BUILD_CFG[output_dir]=""
 BUILD_CFG[package_boot]="true"
 run_build() {
-    log_step "开始内核构建"
+    log_step "$(txt "开始内核构建" "Start kernel build")"
 
     local android_ver="${BUILD_CFG[android_version]}"
     local kernel_ver="${BUILD_CFG[kernel_version]}"
@@ -34,6 +35,7 @@ run_build() {
     local use_zram="${BUILD_CFG[use_zram]}"
     local use_kpm="${BUILD_CFG[use_kpm]}"
     local use_rekernel="${BUILD_CFG[use_rekernel]}"
+    local cve_patch="${BUILD_CFG[cve_2026_43499_patch]:-false}"
     local droidspaces="${BUILD_CFG[droidspaces]}"
     local kernel_source="${BUILD_CFG[kernel_source]}"
     local custom_version="${BUILD_CFG[custom_version]}"
@@ -43,35 +45,41 @@ run_build() {
 
     local config_id="${android_ver}-${kernel_ver}-${sub_level}"
 
+    if [ "$kernel_ver" = "6.12" ] && [ "$use_zram" = "true" ]; then
+        log_warn "$(txt "参考项目在 6.12 构建中禁用 ZRAM 增强，已自动关闭" "The reference project disables ZRAM enhancement for 6.12 builds; it has been turned off automatically")"
+        use_zram="false"
+        BUILD_CFG[use_zram]="false"
+    fi
+
     # ==================== 构建目录 ====================
     local build_dir="${BUILD_CFG[output_dir]:-$PROJECT_ROOT/build/$config_id}"
     mkdir -p "$build_dir"
-    log_info "构建目录: $build_dir"
+    log_info "$(txt "构建目录" "Build directory"): $build_dir"
 
     # 清理旧编译产物
     rm -f "$build_dir"/*.zip "$build_dir"/Image "$build_dir"/Image.* 2>/dev/null || true
 
     # ==================== 准备内核源码 ====================
     if [ -n "$kernel_source" ] && [ -d "$kernel_source" ]; then
-        log_info "使用本地内核源码: $kernel_source"
+        log_info "$(txt "使用本地内核源码" "Using local kernel source"): $kernel_source"
 
         # 检查是否是完整的内核源码目录
         if [ -d "$kernel_source/common" ]; then
             # 已经是 GKI repo 结构
             local kernel_root="$build_dir/kernel"
             mkdir -p "$kernel_root"
-            log_info "检测到 GKI repo 结构，创建符号链接..."
+            log_info "$(txt "检测到 GKI repo 结构，创建符号链接..." "Detected GKI repo layout; creating symlink...")"
             ln -sf "$kernel_source" "$kernel_root"
             kernel_root="$kernel_source"
         elif [ -f "$kernel_source/Makefile" ]; then
             # 单一内核源码树
             local kernel_root="$kernel_source"
         else
-            log_error "无效的内核源码目录: $kernel_source (未找到 Makefile 或 common/ 目录)"
+            log_error "$(txt "无效的内核源码目录" "Invalid kernel source directory"): $kernel_source ($(txt "未找到 Makefile 或 common/ 目录" "Makefile or common/ was not found"))"
             return 1
         fi
     else
-        log_error "请先指定本地内核源码路径!"
+        log_error "$(txt "请先指定本地内核源码路径!" "Please specify the local kernel source path first!")"
         return 1
     fi
 
@@ -81,38 +89,39 @@ run_build() {
 
     local defconfig="${common_dir}/arch/arm64/configs/gki_defconfig"
     if [ ! -f "$defconfig" ]; then
-        log_error "未找到 gki_defconfig: $defconfig"
-        log_info "请确认内核源码路径正确，且包含 GKI defconfig"
+        log_error "$(txt "未找到 gki_defconfig" "gki_defconfig not found"): $defconfig"
+        log_info "$(txt "请确认内核源码路径正确，且包含 GKI defconfig" "Confirm the kernel source path is correct and contains the GKI defconfig")"
         return 1
     fi
 
     # ==================== 打印构建摘要 ====================
     echo ""
     echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}       内核构建配置摘要${NC}"
+    echo -e "${CYAN}       $(txt "内核构建配置摘要" "Kernel Build Configuration Summary")${NC}"
     echo -e "${CYAN}========================================${NC}"
-    echo -e "Android 版本  : ${GREEN}$android_ver${NC}"
-    echo -e "内核版本      : ${GREEN}$kernel_ver${NC}"
-    echo -e "子版本号      : ${GREEN}$sub_level${NC}"
-    echo -e "补丁级别      : ${GREEN}$os_patch${NC}"
-    echo -e "KSU 变体      : ${GREEN}$ksu_variant${NC}"
-    echo -e "KSU 分支      : ${GREEN}$ksu_branch${NC}"
-    echo -e "ZRAM 增强     : ${GREEN}$use_zram${NC}"
-    echo -e "KPM 功能      : ${GREEN}$use_kpm${NC}"
-    echo -e "Re-Kernel     : ${GREEN}$use_rekernel${NC}"
+    echo -e "$(txt "Android 版本" "Android version")  : ${GREEN}$android_ver${NC}"
+    echo -e "$(txt "内核版本" "Kernel version")      : ${GREEN}$kernel_ver${NC}"
+    echo -e "$(txt "子版本号" "Sublevel")      : ${GREEN}$sub_level${NC}"
+    echo -e "$(txt "补丁级别" "Patch level")      : ${GREEN}$os_patch${NC}"
+    echo -e "$(txt "KSU 变体" "KSU variant")      : ${GREEN}$ksu_variant${NC}"
+    echo -e "$(txt "KSU 分支" "KSU branch")      : ${GREEN}$(display_ksu_branch "$ksu_branch")${NC}"
+    echo -e "$(txt "ZRAM 增强" "ZRAM enhancement")     : ${GREEN}$(status_bool "$use_zram")${NC}"
+    echo -e "$(txt "KPM 功能" "KPM feature")      : ${GREEN}$(display_kpm "$use_kpm")${NC}"
+    echo -e "Re-Kernel     : ${GREEN}$(status_bool "$use_rekernel")${NC}"
+    echo -e "$(txt "CVE 修复链" "CVE fix chain")    : ${GREEN}$(status_bool "$cve_patch")${NC}"
     echo -e "Droidspaces   : ${GREEN}$droidspaces${NC}"
-    echo -e "内核源码      : ${GREEN}$kernel_source${NC}"
-    echo -e "构建目录      : ${GREEN}$build_dir${NC}"
+    echo -e "$(txt "内核源码" "Kernel source")      : ${GREEN}$kernel_source${NC}"
+    echo -e "$(txt "构建目录" "Build directory")      : ${GREEN}$build_dir${NC}"
     echo -e "${CYAN}========================================${NC}"
     echo ""
 
-    if ! confirm "是否继续编译?" "y"; then
-        log_info "用户取消编译"
+    if ! confirm "$(txt "是否继续编译?" "Continue building?")" "y"; then
+        log_info "$(txt "用户取消编译" "Build cancelled by user")"
         return 0
     fi
 
     # ==================== 克隆依赖仓库 ====================
-    log_step "准备依赖仓库"
+    log_step "$(txt "准备依赖仓库" "Prepare dependency repositories")"
     cd "$build_dir"
 
     local anykernel_dir="$build_dir/AnyKernel3"
@@ -120,7 +129,7 @@ run_build() {
     # AnyKernel3
     if [ ! -d "$anykernel_dir" ]; then
         git_clone "https://github.com/404-GCross/AnyKernel3.git" "$anykernel_dir" -b "gki-2.0" || {
-            log_error "AnyKernel3 克隆失败，终止编译"
+            log_error "$(txt "AnyKernel3 克隆失败，终止编译" "Failed to clone AnyKernel3; aborting build")"
             return 1
         }
         rm -rf "$anykernel_dir/.git" 2>/dev/null || true
@@ -138,11 +147,17 @@ run_build() {
         local extracted=$(grep '^SUBLEVEL = ' "$common_dir/Makefile" | awk '{print $3}' || true)
         [ -n "$extracted" ] && actual_sub="$extracted"
     fi
-    log_info "实际子版本号: $actual_sub"
+    log_info "$(txt "实际子版本号" "Actual sublevel"): $actual_sub"
 
-    # ==================== 修复 glibc 2.38 兼容性 ====================
     local current_sub="$actual_sub"
     [[ ! "$current_sub" =~ ^[0-9]+$ ]] && current_sub=99999
+
+    # ==================== CVE-2026-43499 rtmutex 修复链 ====================
+    if [ "$cve_patch" = "true" ]; then
+        apply_cve_2026_43499 "$work_kernel" "$kernel_ver" "$actual_sub" || return 1
+    fi
+
+    # ==================== 修复 glibc 2.38 兼容性 ====================
 
     local needs_fix=false
     if [ "$android_ver" = "android13" ] && [ "$kernel_ver" = "5.10" ] && [ "$current_sub" -le 186 ]; then needs_fix=true; fi
@@ -152,7 +167,7 @@ run_build() {
     if [ "$needs_fix" = true ]; then
         local glibc_ver=$(ldd --version 2>/dev/null | head -n 1 | awk '{print $NF}')
         if [ "$(printf '%s\n' "2.38" "$glibc_ver" | sort -V | head -n1)" = "2.38" ]; then
-            log_info "应用 glibc 2.38 兼容性修复..."
+            log_info "$(txt "应用 glibc 2.38 兼容性修复..." "Applying glibc 2.38 compatibility fix...")"
             cd "$common_dir"
             sed -i '/\$(Q)\$(MAKE) -C \$(SUBCMD_SRC) OUTPUT=\$(abspath \$(dir \$@))\/ \$(abspath \$@)/s//$(Q)$(MAKE) -C $(SUBCMD_SRC) EXTRA_CFLAGS="$(CFLAGS)" OUTPUT=$(abspath $(dir $@))\/ $(abspath $@)/' tools/bpf/resolve_btfids/Makefile 2>/dev/null || true
 
@@ -168,7 +183,7 @@ run_build() {
 
     # ==================== 应用 KernelSU ====================
     if [ "$ksu_variant" = "None" ]; then
-        log_info "跳过 KernelSU (纯GKI内核)"
+        log_info "$(txt "跳过 KernelSU (纯GKI内核)" "Skipping KernelSU (pure GKI kernel)")"
     else
         cd "$work_kernel"
         apply_kernelsu "$work_kernel" "$ksu_variant" "$ksu_branch"
@@ -198,7 +213,7 @@ run_build() {
     apply_ntsync "$work_kernel" "$android_ver" "$kernel_ver" "$defconfig"
 
     # ==================== 配置内核选项 ====================
-    log_step "配置内核选项"
+    log_step "$(txt "配置内核选项" "Configure kernel options")"
     cd "$work_kernel"
 
     if [ "$ksu_variant" != "None" ]; then
@@ -227,9 +242,9 @@ EOF
         if [[ "$use_kpm" == enabled* ]] || [[ "$use_kpm" == patched* ]]; then
             if grep -RqsE '^[[:space:]]*config[[:space:]]+KPM([[:space:]]|$)' "$common_dir" "KernelSU" 2>/dev/null; then
                 echo "CONFIG_KPM=y" >> "$defconfig"
-                log_info "已启用 KPM"
+                log_info "$(txt "已启用 KPM" "KPM enabled")"
             else
-                log_warn "当前 KernelSU 代码未定义 CONFIG_KPM，跳过"
+                log_warn "$(txt "当前 KernelSU 代码未定义 CONFIG_KPM，跳过" "Current KernelSU source does not define CONFIG_KPM; skipping")"
             fi
         fi
     fi
@@ -281,13 +296,13 @@ EOF
             if grep -Rqs 'config CRYPTO_LZ4K' "$common_dir"; then
                 cat "$PROJECT_ROOT/config/zram.config" >> "$defconfig"
             else
-                log_warn "ZRAM LZ4K 补丁未成功应用，跳过增强配置（内核版本可能不兼容）"
+                log_warn "$(txt "ZRAM LZ4K 补丁未成功应用，跳过增强配置（内核版本可能不兼容）" "ZRAM LZ4K patch was not applied successfully; skipping enhanced config (kernel version may be incompatible)")"
             fi
         fi
     fi
 
     # ==================== 配置内核名称 ====================
-    log_step "配置内核版本名称"
+    log_step "$(txt "配置内核版本名称" "Configure kernel version name")"
 
     cd "$work_kernel"
     if [ -f "build/build.sh" ]; then
@@ -315,7 +330,7 @@ EOF
         export KBUILD_BUILD_TIMESTAMP="$(TZ='UTC' date +'%a %b %d %T %Z %Y')"
     fi
     export KBUILD_BUILD_VERSION=1
-    log_info "构建时间: $KBUILD_BUILD_TIMESTAMP"
+    log_info "$(txt "构建时间" "Build timestamp"): $KBUILD_BUILD_TIMESTAMP"
 
     # mkcompile_h 补丁
     local mkcompile="$common_dir/scripts/mkcompile_h"
@@ -332,7 +347,7 @@ EOF
     fi
 
     # ==================== 编译内核 ====================
-    log_step "编译内核"
+    log_step "$(txt "编译内核" "Build kernel")"
     cd "$work_kernel"
 
     sed -i 's/BUILD_SYSTEM_DLKM=1/BUILD_SYSTEM_DLKM=0/' "$common_dir/build.config.gki.aarch64" 2>/dev/null || true
@@ -349,7 +364,7 @@ EOF
     export KCFLAGS
 
     if [ -f "tools/bazel" ]; then
-        log_info "使用 Bazel 编译..."
+        log_info "$(txt "使用 Bazel 编译..." "Building with Bazel...")"
 
         # modules_install 创建 build/source → 源码树的符号链接，
         # Bazel 处理产物时递归遍历 .git 目录导致 IOException。
@@ -367,26 +382,28 @@ EOF
 
         local frag_flag=""
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
+        local lto_flag="--lto=thin"
+        [ "$kernel_ver" = "6.12" ] && lto_flag="--lto=none"
 
         cd "$work_kernel"
-        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast --lto=thin $frag_flag //common:kernel_aarch64_dist || {
-            log_error "Bazel 编译失败"
+        tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast "$lto_flag" $frag_flag //common:kernel_aarch64_dist || {
+            log_error "$(txt "Bazel 编译失败" "Bazel build failed")"
             return 1
         }
         strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version' || true
     elif [ -f "build/build.sh" ]; then
-        log_info "使用 build.sh 编译..."
+        log_info "$(txt "使用 build.sh 编译..." "Building with build.sh...")"
         LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || {
-            log_error "内核编译失败"
+            log_error "$(txt "内核编译失败" "Kernel build failed")"
             return 1
         }
         strings "out/${android_ver}-${kernel_ver}/dist/Image" | grep 'Linux version' || true
     else
-        log_error "未找到支持的构建系统 (tools/bazel 或 build/build.sh)"
+        log_error "$(txt "未找到支持的构建系统 (tools/bazel 或 build/build.sh)" "No supported build system found (tools/bazel or build/build.sh)")"
         return 1
     fi
 
-    log_info "内核编译成功!"
+    log_info "$(txt "内核编译成功!" "Kernel build succeeded!")"
 
     # ==================== 复制编译产物到输出目录 ====================
     cd "$build_dir"
@@ -401,11 +418,11 @@ EOF
     cp "$image_path" "$build_dir/" 2>/dev/null || true
 
     if [ "$package_boot" != "true" ]; then
-        log_info "跳过打包，仅输出内核镜像"
+        log_info "$(txt "跳过打包，仅输出内核镜像" "Skipping package step; outputting kernel image only")"
     else
         # ==================== AnyKernel3 打包 ====================
         if [ -d "$anykernel_dir" ]; then
-            log_step "创建 AnyKernel3 刷入包"
+            log_step "$(txt "创建 AnyKernel3 刷入包" "Create AnyKernel3 flash package")"
             cd "$anykernel_dir"
             local tag=""
             if [ "$ksu_variant" = "None" ]; then
@@ -424,7 +441,7 @@ EOF
             zip_name="${zip_name}-AnyKernel3.zip"
             cp "$build_dir/Image" ./Image 2>/dev/null || true
             zip -r "../$zip_name" ./* -x ".git/*"
-            log_info "AnyKernel3 包: $build_dir/$zip_name"
+            log_info "$(txt "AnyKernel3 包" "AnyKernel3 package"): $build_dir/$zip_name"
             cd "$build_dir"
 
             # 提示用户手动获取管理器
@@ -437,15 +454,15 @@ EOF
                     Official) manager_url="https://github.com/tiann/KernelSU/actions/workflows/build-manager.yml" ;;
                 esac
                 echo ""
-                echo -e "  ${YELLOW}提示: 请手动下载 ${ksu_variant} 管理器 APK${NC}"
-                [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}KSU 版本: ${ksu_ver}${NC}"
-                [ -n "$manager_url" ] && echo -e "  ${YELLOW}Actions 页面: ${manager_url}${NC}"
-                echo -e "  ${YELLOW}(需登录 GitHub，找到 name 含版本号的 run → Artifacts 下载 manager zip)${NC}"
-                echo -e "  ${YELLOW}注：选择 main 分支最新的即可${NC}"
+                echo -e "  ${YELLOW}$(txt "提示: 请手动下载 ${ksu_variant} 管理器 APK" "Note: download the ${ksu_variant} manager APK manually")${NC}"
+                [ -n "$ksu_ver" ] && echo -e "  ${YELLOW}$(txt "KSU 版本" "KSU version"): ${ksu_ver}${NC}"
+                [ -n "$manager_url" ] && echo -e "  ${YELLOW}$(txt "Actions 页面" "Actions page"): ${manager_url}${NC}"
+                echo -e "  ${YELLOW}$(txt "(需登录 GitHub，找到 name 含版本号的 run → Artifacts 下载 manager zip)" "(Sign in to GitHub, find the run whose name contains the version, then download the manager zip from Artifacts)")${NC}"
+                echo -e "  ${YELLOW}$(txt "注：选择 main 分支最新的即可" "Note: choose the latest run on the main branch")${NC}"
                 echo ""
             fi
         else
-            log_warn "未找到 AnyKernel3，跳过打包"
+            log_warn "$(txt "未找到 AnyKernel3，跳过打包" "AnyKernel3 was not found; skipping package step")"
         fi
     fi
 
@@ -455,7 +472,7 @@ EOF
 
     mapfile -t rej_files < <(find "$work_kernel" -type f -name '*.rej' 2>/dev/null || true)
     if [ ${#rej_files[@]} -gt 0 ]; then
-        log_warn "发现 ${#rej_files[@]} 个补丁冲突文件"
+        log_warn "$(txt "发现" "Found") ${#rej_files[@]} $(txt "个补丁冲突文件" "patch reject file(s)")"
         for rej in "${rej_files[@]}"; do
             local rel="${rej#"$work_kernel"/}"
             local dest="$rejects_dir/$rel"
@@ -468,12 +485,12 @@ EOF
     # ==================== 构建完成 ====================
     echo ""
     echo -e "${GREEN}${BOLD}========================================${NC}"
-    echo -e "${GREEN}${BOLD}       内核构建完成!${NC}"
+    echo -e "${GREEN}${BOLD}       $(txt "内核构建完成!" "Kernel build completed!")${NC}"
     echo -e "${GREEN}${BOLD}========================================${NC}"
     echo ""
-    echo -e "输出目录: ${CYAN}$build_dir${NC}"
+    echo -e "$(txt "输出目录" "Output directory"): ${CYAN}$build_dir${NC}"
     echo ""
-    echo -e "产物列表:"
+    echo -e "$(txt "产物列表:" "Artifacts:")"
     if [ "$package_boot" = "true" ]; then
         ls -lh "$build_dir"/*.zip 2>/dev/null || true
     fi
@@ -481,6 +498,6 @@ EOF
     echo ""
 
     if [ ${#rej_files[@]} -gt 0 ]; then
-        echo -e "${YELLOW}警告: 存在 ${#rej_files[@]} 个补丁冲突文件，参见: $rejects_dir${NC}"
+        echo -e "${YELLOW}$(txt "警告: 存在" "Warning:") ${#rej_files[@]} $(txt "个补丁冲突文件，参见" "patch reject file(s), see"): $rejects_dir${NC}"
     fi
 }
