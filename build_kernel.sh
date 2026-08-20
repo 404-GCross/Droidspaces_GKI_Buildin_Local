@@ -826,26 +826,43 @@ extract_kernel_source_tarball() {
     local tarball="${BUILD_CFG[kernel_source_tarball]:-}"
     [ -z "$tarball" ] && return 0
 
-    if [ -z "${BUILD_CFG[kernel_source]}" ] || [ ! -d "${BUILD_CFG[kernel_source]}" ]; then
-        if [ -f "$tarball" ]; then
-            log_step "$(txt "解压内核源码包" "Extract kernel source archive")"
-            local extracted_dir="$HOME/kernel-sources/$(basename "${tarball%.tar.gz}")"
-            if [ -d "$extracted_dir" ]; then
-                log_info "$(txt "已存在" "Already exists") $extracted_dir, $(txt "跳过解压" "skipping extraction")"
-            else
-                mkdir -p "$extracted_dir"
-                tar -xzf "$tarball" -C "$extracted_dir" --strip-components=1
-                # 删除压缩包自带的 Bazel 缓存（含其他机器的硬编码路径）
-                rm -rf "$extracted_dir/out" 2>/dev/null || true
-            fi
-            if [ -d "$extracted_dir/common" ]; then
-                BUILD_CFG[kernel_source]="$extracted_dir"
-                log_info "$(txt "内核源码路径" "Kernel source path"): $extracted_dir"
-            fi
-        else
-            log_error "$(txt "源码包不存在" "Source archive does not exist"): $tarball"
+    if [ ! -f "$tarball" ]; then
+        log_error "$(txt "源码包不存在" "Source archive does not exist"): $tarball"
+        return 1
+    fi
+
+    if [ -n "${BUILD_CFG[kernel_source]}" ] && { [ -d "${BUILD_CFG[kernel_source]}/common" ] || [ -f "${BUILD_CFG[kernel_source]}/Makefile" ]; }; then
+        return 0
+    fi
+
+    log_step "$(txt "解压内核源码包" "Extract kernel source archive")"
+    local extracted_dir="$HOME/kernel-sources/$(basename "${tarball%.tar.gz}")"
+
+    if [ -d "$extracted_dir/common" ] || [ -f "$extracted_dir/Makefile" ]; then
+        log_info "$(txt "已存在有效源码目录" "Found existing valid source directory"): $extracted_dir"
+    else
+        if [ -d "$extracted_dir" ]; then
+            log_warn "$(txt "已存在的解压目录无效，将重新解压" "Existing extracted directory is invalid; re-extracting"): $extracted_dir"
+            local backup_dir="${extracted_dir}.invalid-$(date +%Y%m%d%H%M%S)-$$"
+            mv "$extracted_dir" "$backup_dir"
+            log_warn "$(txt "旧目录已保留为" "Old directory kept as"): $backup_dir"
+        fi
+        mkdir -p "$extracted_dir"
+        if ! tar -xzf "$tarball" -C "$extracted_dir" --strip-components=1; then
+            log_error "$(txt "源码包解压失败" "Failed to extract source archive"): $tarball"
             return 1
         fi
+        # 删除压缩包自带的 Bazel 缓存（含其他机器的硬编码路径）
+        rm -rf "$extracted_dir/out" 2>/dev/null || true
+    fi
+
+    if [ -d "$extracted_dir/common" ] || [ -f "$extracted_dir/Makefile" ]; then
+        BUILD_CFG[kernel_source]="$extracted_dir"
+        log_info "$(txt "内核源码路径" "Kernel source path"): $extracted_dir"
+    else
+        BUILD_CFG[kernel_source]=""
+        log_error "$(txt "解压后未找到 common/ 或 Makefile，源码包可能不完整" "common/ or Makefile was not found after extraction; the source archive may be incomplete"): $extracted_dir"
+        return 1
     fi
 }
 
@@ -962,7 +979,7 @@ main_menu() {
                     continue
                 fi
 
-                extract_kernel_source_tarball
+                extract_kernel_source_tarball || continue
 
                 show_config_summary
 
