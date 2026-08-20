@@ -220,8 +220,14 @@ _speedtest_single() {
 _lookup_os_patch_level() {
     local key="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}"
     local data="${KERNEL_VERSIONS[$key]:-}"
+
+    BUILD_CFG[os_patch_level]=""
+    BUILD_CFG[revision]=""
+
     [ -z "$data" ] && return
-    while IFS='|' read -r _ sub patch rev; do
+
+    local label sub patch rev
+    while IFS='|' read -r label sub patch rev; do
         [ -z "$sub" ] && continue
         if [ "$sub" = "${BUILD_CFG[sub_level]}" ]; then
             [ -n "$patch" ] && BUILD_CFG[os_patch_level]="$patch"
@@ -229,6 +235,34 @@ _lookup_os_patch_level() {
             return 0
         fi
     done <<< "$data" || true
+
+    # GKI-Kernel-Source_Fetch resolves X/LTS to the real sublevel before printing
+    # the target version, e.g. android16-6.12-92. Map that back to the X row.
+    local lts_regex='lts[[:space:]]*->[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)'
+    while IFS='|' read -r label sub patch rev; do
+        [ -z "$label" ] && continue
+        if [[ "$label" =~ $lts_regex ]]; then
+            local lts_kernel="${BASH_REMATCH[1]}"
+            local lts_sub="${lts_kernel##*.}"
+            if [ "$lts_sub" = "${BUILD_CFG[sub_level]}" ]; then
+                [ -n "$patch" ] && BUILD_CFG[os_patch_level]="$patch"
+                [ -n "$rev" ] && BUILD_CFG[revision]="$rev"
+                return 0
+            fi
+        fi
+    done <<< "$data" || true
+}
+
+_set_kernel_version_from_id() {
+    local version_id="$1"
+    if [[ "$version_id" =~ ^(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)$ ]]; then
+        BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
+        BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
+        BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
+        _lookup_os_patch_level
+        return 0
+    fi
+    return 1
 }
 
 # 获取内核源码 (远程脚本)
@@ -260,26 +294,34 @@ fetch_kernel_source() {
 
     log_info "$(txt "内核源码获取完成" "Kernel source fetch completed")"
 
-    # 从脚本输出中解析版本号 (格式: "目标版本：android12-5.10-246")
+    # 从脚本输出中解析版本号 (格式: "目标版本：android12-5.10-246" / "Target version: android12-5.10-246")
     # 先去除 ANSI 转义码再解析，否则颜色码会导致行首匹配失败
-    local version_line=$(sed 's/\x1b\[[0-9;]*m//g' "$tmp_out" | sed -n 's/^.*目标版本：//p' | tail -1)
+    local clean_output
+    clean_output=$(sed 's/\x1b\[[0-9;]*m//g' "$tmp_out")
+    local version_line=$(printf '%s\n' "$clean_output" | sed -n -E 's/^.*(目标版本：|Target version:)[[:space:]]*//p' | tail -1)
     if [ -n "$version_line" ]; then
-        # 解析 android12-5.10-246 → android12 / 5.10 / 246
-        if [[ "$version_line" =~ ^(android[0-9]+)-([0-9]+\.[0-9]+)-(.+)$ ]]; then
-            BUILD_CFG[android_version]="${BASH_REMATCH[1]}"
-            BUILD_CFG[kernel_version]="${BASH_REMATCH[2]}"
-            BUILD_CFG[sub_level]="${BASH_REMATCH[3]}"
-            _lookup_os_patch_level
+        if _set_kernel_version_from_id "$version_line"; then
             log_info "$(txt "已自动设置内核版本" "Auto-detected kernel version"): ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
         fi
     fi
 
-    # 从脚本输出中解析源码路径 (格式: "源码路径：/path/to/src")
-    local source_path=$(sed -n 's/^源码路径：//p' "$tmp_out" | tail -1)
+    # 从脚本输出中解析源码路径/压缩包路径。
+    # no-extract 脚本默认只输出压缩包路径，英文界面输出 Source/Archive path。
+    local source_path=$(printf '%s\n' "$clean_output" | sed -n -E 's/^(源码路径：|Source path:)[[:space:]]*//p' | tail -1)
+    local archive_path=$(printf '%s\n' "$clean_output" | sed -n -E 's/^(压缩包路径：|Archive path:)[[:space:]]*//p' | tail -1)
     rm -f "$tmp_out"
 
-    if [ -n "$source_path" ] && [ -d "$source_path" ]; then
+    if [ -n "$archive_path" ] && [ -f "$archive_path" ]; then
+        BUILD_CFG[kernel_source_tarball]="$archive_path"
+        BUILD_CFG[kernel_source]=""
+        local archive_name=$(basename "$archive_path")
+        if [[ "$archive_name" =~ ^kernel-source-(android[0-9]+-[0-9]+\.[0-9]+-.+)\.tar\.gz$ ]]; then
+            _set_kernel_version_from_id "${BASH_REMATCH[1]}" || true
+        fi
+        log_info "$(txt "已自动设置内核源码包" "Auto-detected kernel source archive"): $(basename "$archive_path")"
+    elif [ -n "$source_path" ] && [ -d "$source_path" ]; then
         BUILD_CFG[kernel_source]="$source_path"
+        BUILD_CFG[kernel_source_tarball]=""
         log_info "$(txt "已自动设置内核源码路径" "Auto-detected kernel source path"): ${BUILD_CFG[kernel_source]}"
     elif [ -z "${BUILD_CFG[kernel_source]}" ] && [ -d "$PROJECT_ROOT/GKI-Kernel-Source" ]; then
         BUILD_CFG[kernel_source]="$PROJECT_ROOT/GKI-Kernel-Source"
@@ -292,7 +334,7 @@ fetch_kernel_source() {
     shopt -s nullglob
     local tarballs=("$HOME/kernel-sources"/*.tar.gz)
     shopt -u nullglob
-    if [ ${#tarballs[@]} -gt 0 ] && [ -n "${BUILD_CFG[android_version]}" ]; then
+    if [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ] && [ ${#tarballs[@]} -gt 0 ] && [ -n "${BUILD_CFG[android_version]}" ]; then
         local version_pattern="${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}"
         local matched=""
         for t in "${tarballs[@]}"; do
@@ -331,14 +373,23 @@ config_kernel_source() {
 }
 
 # ================================================================
-# 预定义内核版本组合 (来自 GitHub Actions matrix)
+# 预定义内核版本组合 (对齐 GKI-Kernel-Source_Fetch 的 fetch_kernel_source_no-extract.sh)
 # 格式: "显示名|sub_level|os_patch_level|revision"
 # ================================================================
 
 declare -A KERNEL_VERSIONS
+KERNEL_VERSION_KEYS=(
+    "android12-5.10"
+    "android13-5.15"
+    "android14-6.1"
+    "android15-6.6"
+    "android16-6.12"
+    "android17-6.18"
+)
 
-# Android 12 - 5.10 (有 revision)
+# Android 12 - 5.10
 KERNEL_VERSIONS["android12-5.10"]="
+5.10.43  (2021-10)|43|2021-10|
 5.10.66  (2022-01 r11)|66|2022-01|r11
 5.10.81  (2022-03 r11)|81|2022-03|r11
 5.10.101 (2022-04 r28)|101|2022-04|r28
@@ -360,11 +411,13 @@ KERNEL_VERSIONS["android12-5.10"]="
 5.10.237 (2025-06 r1)|237|2025-06|r1
 5.10.240 (2025-09 r1)|240|2025-09|r1
 5.10.246 (2025-12 r1)|246|2025-12|r1
-5.10.X   (lts r1)|X|lts|r1
+5.10.256 (2026-07)|256|2026-07|
+5.10.X   (lts -> 5.10.264)|X|lts|r1
 "
 
-# Android 13 - 5.15 (无 revision)
+# Android 13 - 5.15
 KERNEL_VERSIONS["android13-5.15"]="
+5.15.41  (2022-11)|41|2022-11|
 5.15.74  (2023-01)|74|2023-01|
 5.15.78  (2023-03)|78|2023-03|
 5.15.94  (2023-05)|94|2023-05|
@@ -384,10 +437,11 @@ KERNEL_VERSIONS["android13-5.15"]="
 5.15.185 (2025-07)|185|2025-07|
 5.15.189 (2025-09)|189|2025-09|
 5.15.194 (2025-12)|194|2025-12|
-5.15.X   (lts)|X|lts|
+5.15.207 (2026-07)|207|2026-07|
+5.15.X   (lts -> 5.15.211)|X|lts|
 "
 
-# Android 14 - 6.1 (无 revision)
+# Android 14 - 6.1
 KERNEL_VERSIONS["android14-6.1"]="
 6.1.25  (2023-10)|25|2023-10|
 6.1.43  (2023-11)|43|2023-11|
@@ -411,10 +465,12 @@ KERNEL_VERSIONS["android14-6.1"]="
 6.1.145 (2025-09)|145|2025-09|
 6.1.157 (2025-12)|157|2025-12|
 6.1.162 (2026-03)|162|2026-03|
-6.1.X   (lts)|X|lts|
+6.1.172 (2026-06)|172|2026-06|
+6.1.173 (2026-07)|173|2026-07|
+6.1.X   (lts -> 6.1.176)|X|lts|
 "
 
-# Android 15 - 6.6 (无 revision)
+# Android 15 - 6.6
 KERNEL_VERSIONS["android15-6.6"]="
 6.6.50  (2024-10)|50|2024-10|
 6.6.56  (2024-11)|56|2024-11|
@@ -430,15 +486,25 @@ KERNEL_VERSIONS["android15-6.6"]="
 6.6.102 (2025-10)|102|2025-10|
 6.6.118 (2026-01)|118|2026-01|
 6.6.127 (2026-04)|127|2026-04|
-6.6.X   (lts)|X|lts|
+6.6.139 (2026-07)|139|2026-07|
+6.6.X   (lts -> 6.6.142)|X|lts|
 "
 
-# Android 16 - 6.12 (无 revision)
+# Android 16 - 6.12
 KERNEL_VERSIONS["android16-6.12"]="
 6.12.23 (2025-06)|23|2025-06|
 6.12.30 (2025-07)|30|2025-07|
 6.12.38 (2025-09)|38|2025-09|
 6.12.58 (2025-12)|58|2025-12|
+6.12.69 (2026-03)|69|2026-03|
+6.12.81 (2026-06)|81|2026-06|
+6.12.X  (lts -> 6.12.92)|X|lts|
+"
+
+# Android 17 - 6.18
+KERNEL_VERSIONS["android17-6.18"]="
+6.18.21 (2026-06)|21|2026-06|
+6.18.X  (lts -> 6.18.32)|X|lts|
 "
 
 # 内核版本选择菜单
@@ -453,18 +519,14 @@ config_kernel_version() {
         "Android 14 - 6.1  (android14-6.1)"
         "Android 15 - 6.6  (android15-6.6)"
         "Android 16 - 6.12 (android16-6.12)"
+        "Android 17 - 6.18 (android17-6.18)"
     )
     local result=$(select_option "$(txt "选择目标 Android/内核版本:" "Select target Android/kernel version:")" "${versions[@]}")
     local idx="${result%%$'\t'*}"
 
-    local av kv
-    case $idx in
-        0) av="android12"; kv="5.10" ;;
-        1) av="android13"; kv="5.15" ;;
-        2) av="android14"; kv="6.1"  ;;
-        3) av="android15"; kv="6.6"  ;;
-        4) av="android16"; kv="6.12" ;;
-    esac
+    local key="${KERNEL_VERSION_KEYS[$idx]}"
+    local av="${key%-*}"
+    local kv="${key##*-}"
 
     BUILD_CFG[android_version]="$av"
     BUILD_CFG[kernel_version]="$kv"
@@ -474,7 +536,6 @@ config_kernel_version() {
     echo ""
     echo -e "${CYAN}$(txt "选择子版本号 (安全补丁级别已自动关联):" "Select sublevel (security patch level is linked automatically):")${NC}"
 
-    local key="${av}-${kv}"
     local data="${KERNEL_VERSIONS[$key]}"
     local -a labels=()
     local -a subs=()
@@ -541,14 +602,21 @@ config_droidspaces() {
     echo ""
 
     local ds_opts=("$(txt "off (关闭)" "Off")" "678" "123" "345")
-    if [ "${BUILD_CFG[kernel_version]}" = "6.12" ]; then
-        ds_opts=("$(txt "off (关闭)" "Off")" "$(txt "on (开启)" "On")")
-    fi
+    case "${BUILD_CFG[kernel_version]}" in
+        6.12|6.18)
+            ds_opts=("$(txt "off (关闭)" "Off")" "$(txt "on (开启)" "On")")
+            ;;
+    esac
     local ds_result=$(select_option "Droidspaces $(txt "容器支持:" "container support:")" "${ds_opts[@]}")
     local idx="${ds_result%%$'\t'*}"
     case $idx in
         0) BUILD_CFG[droidspaces]="off" ;;
-        1) [ "${BUILD_CFG[kernel_version]}" = "6.12" ] && BUILD_CFG[droidspaces]="on" || BUILD_CFG[droidspaces]="678" ;;
+        1)
+            case "${BUILD_CFG[kernel_version]}" in
+                6.12|6.18) BUILD_CFG[droidspaces]="on" ;;
+                *) BUILD_CFG[droidspaces]="678" ;;
+            esac
+            ;;
         2) BUILD_CFG[droidspaces]="123" ;;
         3) BUILD_CFG[droidspaces]="345" ;;
     esac
@@ -568,17 +636,20 @@ config_features() {
     echo ""
 
     # ZRAM
-    if [ "${BUILD_CFG[kernel_version]}" = "6.12" ]; then
-        BUILD_CFG[use_zram]="false"
-        echo -e "  ZRAM: ${YELLOW}$(txt "6.12 暂不启用，已按参考项目禁用" "Disabled for 6.12 to match the reference project")${NC}"
-    else
-        if confirm "$(txt "启用 ZRAM 增强算法 (LZ4KD)?" "Enable ZRAM enhanced algorithms (LZ4KD)?")" "n"; then
-            BUILD_CFG[use_zram]="true"
-        else
+    case "${BUILD_CFG[kernel_version]}" in
+        6.12|6.18)
             BUILD_CFG[use_zram]="false"
-        fi
-        echo -e "  ZRAM: ${GREEN}$(status_bool "${BUILD_CFG[use_zram]}")${NC}"
-    fi
+            echo -e "  ZRAM: ${YELLOW}$(txt "6.12/6.18 暂不启用，已按参考项目禁用" "Disabled for 6.12/6.18 to match the reference project")${NC}"
+            ;;
+        *)
+            if confirm "$(txt "启用 ZRAM 增强算法 (LZ4KD)?" "Enable ZRAM enhanced algorithms (LZ4KD)?")" "n"; then
+                BUILD_CFG[use_zram]="true"
+            else
+                BUILD_CFG[use_zram]="false"
+            fi
+            echo -e "  ZRAM: ${GREEN}$(status_bool "${BUILD_CFG[use_zram]}")${NC}"
+            ;;
+    esac
 
     # Re-Kernel
     if confirm "$(txt "启用 Re-Kernel 驱动?" "Enable Re-Kernel driver?")" "n"; then
@@ -744,7 +815,7 @@ config_kernel_from_source_package() {
         log_info "$(txt "源码包" "Source archive"): $chosen ($(txt "将在编译时解压" "will be extracted during build"))"
     else
         log_warn "$(txt "无法从文件名识别内核版本" "Could not detect kernel version from filename"): $name"
-        log_info "$(txt "参考格式" "Expected format"): kernel-source-android16-6.12-23.tar.gz"
+        log_info "$(txt "参考格式" "Expected format"): kernel-source-android17-6.18-21.tar.gz"
     fi
 }
 
@@ -795,7 +866,7 @@ main_menu() {
     while true; do
         echo ""
         echo -e "${CYAN}${BOLD}═══ $(txt "主菜单" "Main Menu") ═══${NC}"
-        echo -e "  ${RED}$(txt "米系6.12设备暂不可用" "Xiaomi-family 6.12 devices are currently unsupported")${NC}"
+        echo -e "  ${RED}$(txt "米系6.12设备暂不可用，6.18请先小范围测试" "Xiaomi-family 6.12 devices are currently unsupported; test 6.18 carefully first")${NC}"
         echo ""
         echo -e "  ${YELLOW}$(txt "建议按顺序配置一遍" "Recommended: configure each item in order")${NC}"
         echo ""

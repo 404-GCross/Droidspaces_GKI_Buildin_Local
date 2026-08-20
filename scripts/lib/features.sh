@@ -279,7 +279,7 @@ apply_droidspaces() {
     local slot_name=$(echo "$slot" | sed 's/\(.\)/\1_/g; s/_$//')
     local patch_file=""
     case "$kernel_ver" in
-        6.12) patch_file="$patch_dir/kernel-6.12/001.GKI-6.12-or-above-fix_sysvipc_kabi.patch" ;;
+        6.12|6.18) patch_file="$patch_dir/kernel-6.12/001.GKI-6.12-or-above-fix_sysvipc_kabi.patch" ;;
         5.10|5.15|6.1|6.6) patch_file="$patch_dir/below-kernel-6.12/001.GKI-below-6.12-fix_sysvipc_kabi_${slot_name}.patch" ;;
     esac
     [ -f "$patch_file" ] && patch -p1 --forward < "$patch_file" || true
@@ -290,8 +290,8 @@ apply_droidspaces() {
         [ -f "$posix_patch" ] && patch -p1 --forward < "$posix_patch" || true
     fi
 
-    # Android 16 6.12 IPC_NS 符号导出
-    if [ "$kernel_ver" = "6.12" ]; then
+    # Android 16+ / 6.12+ IPC_NS 符号导出
+    if [ "$kernel_ver" = "6.12" ] || [ "$kernel_ver" = "6.18" ]; then
         grep -qF 'EXPORT_SYMBOL(init_ipc_ns);' ipc/msgutil.c || \
             sed -i '/^struct msg_msgseg {/i EXPORT_SYMBOL(init_ipc_ns);' ipc/msgutil.c
         grep -qF 'EXPORT_SYMBOL(put_ipc_ns);' ipc/namespace.c || \
@@ -354,6 +354,7 @@ apply_ntsync() {
     patch -p1 --forward < "$patch_dir/ntsync_base.patch" || true
     local patch_file=""
     case "$kernel_ver" in
+        6.18) patch_file="$patch_dir/ntsync_compat_android17-6.18.patch" ;;
         6.12) patch_file="$patch_dir/ntsync_compat_android16-6.12.patch" ;;
         6.6)  patch_file="$patch_dir/ntsync_compat_android15-6.6.patch" ;;
         6.1)  patch_file="$patch_dir/ntsync_compat_android14-6.1.patch" ;;

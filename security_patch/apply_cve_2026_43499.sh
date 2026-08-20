@@ -343,6 +343,9 @@ patch_chain_is_required() {
     6.12)
       (( kernel_sublevel < 95 ))
       ;;
+    6.18)
+      return 1
+      ;;
     *)
       return 1
       ;;
@@ -352,7 +355,7 @@ patch_chain_is_required() {
 case "$kernel_version" in
   5.10|5.15)
     ;;
-  6.1|6.6|6.12)
+  6.1|6.6|6.12|6.18)
     if [[ ! "$kernel_sublevel" =~ ^[0-9]+$ ]]; then
       echo "ERROR: non-numeric SUBLEVEL for $kernel_version: $kernel_sublevel" >&2
       exit 2

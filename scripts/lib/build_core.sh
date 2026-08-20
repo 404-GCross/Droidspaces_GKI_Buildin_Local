@@ -45,8 +45,8 @@ run_build() {
 
     local config_id="${android_ver}-${kernel_ver}-${sub_level}"
 
-    if [ "$kernel_ver" = "6.12" ] && [ "$use_zram" = "true" ]; then
-        log_warn "$(txt "参考项目在 6.12 构建中禁用 ZRAM 增强，已自动关闭" "The reference project disables ZRAM enhancement for 6.12 builds; it has been turned off automatically")"
+    if { [ "$kernel_ver" = "6.12" ] || [ "$kernel_ver" = "6.18" ]; } && [ "$use_zram" = "true" ]; then
+        log_warn "$(txt "参考项目在 6.12/6.18 构建中禁用 ZRAM 增强，已自动关闭" "The reference project disables ZRAM enhancement for 6.12/6.18 builds; it has been turned off automatically")"
         use_zram="false"
         BUILD_CFG[use_zram]="false"
     fi
@@ -226,8 +226,8 @@ CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
 EOF
 
-    # 6.12 内核需要 Rust 支持
-    if [ "$kernel_ver" = "6.12" ]; then
+    # 6.12+ 内核需要 Rust 支持
+    if [ "$kernel_ver" = "6.12" ] || [ "$kernel_ver" = "6.18" ]; then
         cat >> "$defconfig" << 'EOF'
 CONFIG_RUST=y
 CONFIG_ANDROID_BINDER_IPC_RUST=m
@@ -383,7 +383,7 @@ EOF
         local frag_flag=""
         [ -s "$frag" ] && frag_flag="--defconfig_fragment=//common:arch/arm64/configs/ksu.fragment"
         local lto_flag="--lto=thin"
-        [ "$kernel_ver" = "6.12" ] && lto_flag="--lto=none"
+        { [ "$kernel_ver" = "6.12" ] || [ "$kernel_ver" = "6.18" ]; } && lto_flag="--lto=none"
 
         cd "$work_kernel"
         tools/bazel build --disk_cache="$HOME/.cache/bazel" --config=fast "$lto_flag" $frag_flag //common:kernel_aarch64_dist || {
