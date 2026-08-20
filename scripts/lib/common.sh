@@ -57,6 +57,14 @@ display_ksu_branch() {
     esac
 }
 
+language_name() {
+    if [ "${APP_LANG:-zh}" = "en" ]; then
+        printf '%s' "English"
+    else
+        printf '%s' "简体中文"
+    fi
+}
+
 choose_language() {
     local choice=""
     echo ""

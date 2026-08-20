@@ -40,6 +40,7 @@ show_help() {
 save_config() {
     cat > "$BUILD_CONFIG_FILE" << EOF
 # GKI 编译配置 - $(date)
+APP_LANG="${APP_LANG:-zh}"
 ANDROID_VERSION="${BUILD_CFG[android_version]}"
 KERNEL_VERSION="${BUILD_CFG[kernel_version]}"
 SUB_LEVEL="${BUILD_CFG[sub_level]}"
@@ -64,6 +65,7 @@ KERNEL_SOURCE_TARBALL="${BUILD_CFG[kernel_source_tarball]:-}"
 OUTPUT_DIR="${BUILD_CFG[output_dir]}"
 PACKAGE_BOOT="${BUILD_CFG[package_boot]}"
 EOF
+    CONFIG_DIRTY=false
     log_info "$(txt "配置已保存到" "Config saved to") $BUILD_CONFIG_FILE"
 }
 
@@ -71,6 +73,11 @@ EOF
 load_config() {
     if [ -f "$BUILD_CONFIG_FILE" ]; then
         source "$BUILD_CONFIG_FILE"
+        case "${APP_LANG:-zh}" in
+            zh|en) ;;
+            *) APP_LANG="zh" ;;
+        esac
+        export APP_LANG
         BUILD_CFG[android_version]="${ANDROID_VERSION:-}"
         BUILD_CFG[kernel_version]="${KERNEL_VERSION:-}"
         BUILD_CFG[sub_level]="${SUB_LEVEL:-}"
@@ -92,6 +99,12 @@ load_config() {
         return 0
     fi
     return 1
+}
+
+config_language() {
+    choose_language
+    CONFIG_DIRTY=true
+    log_info "$(txt "语言已设置为" "Language set to"): $(language_name)"
 }
 
 # ================================================================
@@ -229,13 +242,14 @@ fetch_kernel_source() {
 
     log_info "$(txt "正在获取内核源码拉取脚本..." "Fetching kernel source fetch script...")"
     log_info "$(txt "脚本地址" "Script URL"): $actual_url"
+    log_info "$(txt "拉取脚本语言" "Fetch script language"): ${APP_LANG:-zh}"
 
     mkdir -p "$HOME/kernel-sources"
     cd "$HOME"
 
     local tmp_out="/tmp/fetch_kernel_output.log"
     local ret=0
-    bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out" || ret=${PIPESTATUS[0]}
+    SCRIPT_LANG="${APP_LANG:-zh}" bash <(curl -LSs "$actual_url") 2>&1 | tee "$tmp_out" || ret=${PIPESTATUS[0]}
     ret=${ret:-${PIPESTATUS[0]}}
 
     if [ $ret -ne 0 ]; then
@@ -539,6 +553,12 @@ config_droidspaces() {
         3) BUILD_CFG[droidspaces]="345" ;;
     esac
     echo -e "  Droidspaces: ${GREEN}${BUILD_CFG[droidspaces]}${NC}"
+
+    if [ "${BUILD_CFG[droidspaces]}" != "off" ]; then
+        BUILD_CFG[cve_2026_43499_patch]="true"
+        echo -e "  $(txt "CVE修复链" "CVE fix chain"): ${GREEN}$(txt "默认开启 (Droidspaces)" "Enabled by default (Droidspaces)")${NC}"
+    fi
+    CONFIG_DIRTY=true
 }
 
 # 功能开关配置
@@ -569,7 +589,16 @@ config_features() {
     echo -e "  Re-Kernel: ${GREEN}$(status_bool "${BUILD_CFG[use_rekernel]}")${NC}"
 
     # CVE-2026-43499 / CVE-2026-53163 rtmutex 修复链
-    if confirm "$(txt "应用 CVE-2026-43499 rtmutex 修复链? (默认关闭)" "Apply CVE-2026-43499 rtmutex fix chain? (default: off)")" "n"; then
+    local cve_default="n"
+    local cve_prompt
+    if [ "${BUILD_CFG[droidspaces]:-off}" != "off" ]; then
+        cve_default="y"
+        cve_prompt="$(txt "应用 CVE-2026-43499 rtmutex 修复链? (Droidspaces 已启用，默认开启)" "Apply CVE-2026-43499 rtmutex fix chain? (Droidspaces enabled, default: on)")"
+    else
+        cve_prompt="$(txt "应用 CVE-2026-43499 rtmutex 修复链? (默认关闭)" "Apply CVE-2026-43499 rtmutex fix chain? (default: off)")"
+    fi
+
+    if confirm "$cve_prompt" "$cve_default"; then
         BUILD_CFG[cve_2026_43499_patch]="true"
     else
         BUILD_CFG[cve_2026_43499_patch]="false"
@@ -635,6 +664,7 @@ show_config_summary() {
     else
         echo -e "  ${BOLD}$(txt "内核源码" "Kernel source")${NC}      ${RED}$(txt "未设置!" "Not set!")${NC}"
     fi
+    echo -e "  ${BOLD}$(txt "语言" "Language")${NC}      ${GREEN}$(language_name)${NC}"
     echo -e "  ${BOLD}$(txt "Android版本" "Android version")${NC}    ${GREEN}${BUILD_CFG[android_version]:-$(txt "未设置!" "Not set!")}${NC}"
     echo -e "  ${BOLD}$(txt "内核版本" "Kernel version")${NC}      ${GREEN}${BUILD_CFG[kernel_version]:-$(txt "未设置!" "Not set!")}${NC}"
     echo -e "  ${BOLD}$(txt "子版本号" "Sublevel")${NC}      ${GREEN}${BUILD_CFG[sub_level]:-$(txt "未设置!" "Not set!")}${NC}"
@@ -755,8 +785,7 @@ extract_kernel_source_tarball() {
 main_menu() {
     show_banner
 
-    # 尝试加载上次配置
-    if load_config; then
+    if [ "${CONFIG_WAS_LOADED:-false}" = "true" ]; then
         echo -e "$(txt "已加载上次配置" "Loaded saved config"): ${YELLOW}$BUILD_CONFIG_FILE${NC}"
     fi
 
@@ -770,29 +799,31 @@ main_menu() {
         echo ""
         echo -e "  ${YELLOW}$(txt "建议按顺序配置一遍" "Recommended: configure each item in order")${NC}"
         echo ""
-        echo -ne "  1) $(txt "镜像源配置" "Mirror configuration")"
+        echo -ne "  1) $(txt "语言选择" "Language")"
+        echo -e " ${GREEN}→ $(language_name)${NC}"
+        echo -ne "  2) $(txt "镜像源配置" "Mirror configuration")"
         echo -e " ${GREEN}→ ${CUSTOM_GITHUB_MIRROR:-$(txt "直连" "direct")}${NC}"
-        echo "  2) $(txt "安装编译依赖" "Install build dependencies")"
-        echo "  3) $(txt "获取内核源码" "Fetch kernel source")"
-        echo -ne "  4) $(txt "选择脚本获取的内核源码" "Select downloaded kernel source")"
+        echo "  3) $(txt "安装编译依赖" "Install build dependencies")"
+        echo "  4) $(txt "获取内核源码" "Fetch kernel source")"
+        echo -ne "  5) $(txt "选择脚本获取的内核源码" "Select downloaded kernel source")"
         if [ -n "${BUILD_CFG[kernel_source_tarball]:-}" ]; then
             echo -e " ${GREEN}→ $(basename "${BUILD_CFG[kernel_source_tarball]:-}")${NC}"
         else
             echo ""
         fi
-        echo -ne "  5) $(txt "选择内核源码路径" "Select kernel source path")"
+        echo -ne "  6) $(txt "选择内核源码路径" "Select kernel source path")"
         if [ -z "${BUILD_CFG[kernel_source_tarball]:-}" ] && [ -n "${BUILD_CFG[kernel_source]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[kernel_source]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  6) $(txt "选择内核版本" "Select kernel version")"
+        echo -ne "  7) $(txt "选择内核版本" "Select kernel version")"
         if [ -n "${BUILD_CFG[android_version]}" ] && [ -n "${BUILD_CFG[kernel_version]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[android_version]}-${BUILD_CFG[kernel_version]}-${BUILD_CFG[sub_level]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  7) $(txt "配置 KernelSU" "Configure KernelSU")"
+        echo -ne "  8) $(txt "配置 KernelSU" "Configure KernelSU")"
         if [ -n "${BUILD_CFG[ksu_variant]}" ]; then
             if [ "${BUILD_CFG[ksu_variant]}" = "None" ]; then
                 echo -e " ${GREEN}→ $(txt "无 (纯GKI内核)" "None (pure GKI)")${NC}"
@@ -802,13 +833,13 @@ main_menu() {
         else
             echo ""
         fi
-        echo -ne "  8) Droidspaces $(txt "容器支持" "container support")"
+        echo -ne "  9) Droidspaces $(txt "容器支持" "container support")"
         if [ -n "${BUILD_CFG[droidspaces]}" ]; then
             echo -e " ${GREEN}→ ${BUILD_CFG[droidspaces]}${NC}"
         else
             echo ""
         fi
-        echo -ne "  9) $(txt "其他功能配置 (实验性内容，不推荐使用)" "Additional features (experimental, not recommended)")"
+        echo -ne "  A) $(txt "其他功能配置 (实验性内容，不推荐使用)" "Additional features (experimental, not recommended)")"
         local enabled_features=()
         [ "${BUILD_CFG[use_zram]}" = "true" ] && enabled_features+=("ZRAM")
         [ "${BUILD_CFG[use_rekernel]}" = "true" ] && enabled_features+=("Re-Kernel")
@@ -836,21 +867,22 @@ main_menu() {
         echo "  ${YELLOW}Q) $(txt "退出" "Quit")${NC}"
         echo ""
 
-        read -r -p "$(echo -e "${YELLOW}$(txt "请选择" "Select") [0-9 / S / Q]:${NC} ")" choice
+        read -r -p "$(echo -e "${YELLOW}$(txt "请选择" "Select") [0-9 / A / S / Q]:${NC} ")" choice
 
         case "${choice,,}" in
-            1) config_mirrors ;;
-            2)
+            1) config_language ;;
+            2) config_mirrors ;;
+            3)
                 setup_dependencies
                 setup_ccache
                 ;;
-            3) fetch_kernel_source ;;
-            4) config_kernel_from_source_package ;;
-            5) config_kernel_source ;;
-            6) config_kernel_version ;;
-            7) config_kernelsu ;;
-            8) config_droidspaces ;;
-            9) config_features ;;
+            4) fetch_kernel_source ;;
+            5) config_kernel_from_source_package ;;
+            6) config_kernel_source ;;
+            7) config_kernel_version ;;
+            8) config_kernelsu ;;
+            9) config_droidspaces ;;
+            a) config_features ;;
             0) config_optional ;;
             s)
                 # 验证必要配置
@@ -874,7 +906,7 @@ main_menu() {
                 fi
                 ;;
             q)
-                if [ -n "${BUILD_CFG[kernel_source]}" ] || [ -n "${BUILD_CFG[android_version]}" ]; then
+                if [ "${CONFIG_DIRTY:-false}" = "true" ] || [ -n "${BUILD_CFG[kernel_source]}" ] || [ -n "${BUILD_CFG[android_version]}" ]; then
                     if confirm "$(txt "是否保存当前配置?" "Save current configuration?")" "y"; then
                         save_config
                     fi
@@ -905,10 +937,9 @@ _cleanup_extracted_source() {
 # 入口
 # ================================================================
 
-choose_language
-
 case "${1:-}" in
     --help|-h)
+        load_config 2>/dev/null || true
         show_help
         exit 0
         ;;
@@ -926,8 +957,14 @@ case "${1:-}" in
         fi
         ;;
     --config)
+        if load_config; then
+            CONFIG_WAS_LOADED=true
+        else
+            CONFIG_WAS_LOADED=false
+            choose_language
+            CONFIG_DIRTY=true
+        fi
         load_mirror_config
-        load_config 2>/dev/null || true
         config_mirrors
         config_kernel_source
         config_kernel_version
@@ -940,12 +977,18 @@ case "${1:-}" in
         log_info "$(txt "配置已保存" "Config saved")"
         ;;
     --reset)
+        load_config 2>/dev/null || true
         rm -f "$BUILD_CONFIG_FILE"
         log_info "$(txt "已清除保存的配置" "Saved config cleared")"
         ;;
     *)
-        load_mirror_config
-        load_config 2>/dev/null || true
+        if load_config; then
+            CONFIG_WAS_LOADED=true
+        else
+            CONFIG_WAS_LOADED=false
+            choose_language
+            CONFIG_DIRTY=true
+        fi
         main_menu
         ;;
 esac
